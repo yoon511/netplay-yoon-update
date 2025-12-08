@@ -221,7 +221,8 @@ export default function VoteDetailPage() {
       return alert("이미 리스트에 존재합니다.");
 
     if (to === "participant") {
-      if (newP.length >= poll.capacity) {
+      if (newP.length >= poll!.capacity) {
+
         return alert("정원이 가득 찼습니다.");
       }
       newP.push(name);

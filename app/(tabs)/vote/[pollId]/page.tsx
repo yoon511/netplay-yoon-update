@@ -14,7 +14,13 @@ import {
 } from "firebase/firestore";
 import ModalConfirm from "../components/ModalConfirm";
 
-type LogType = "join" | "cancel" | "promote" | "admin_remove";
+type LogType = 
+  | "join"
+  | "cancel"
+  | "promote"
+  | "admin_remove"
+  | "admin_add";     // ← 이것 추가해야 TypeScript 오류 해결됨
+
 
 type Poll = {
   date: string;
@@ -272,6 +278,7 @@ export default function VoteDetailPage() {
       cancel: "text-red-500",
       promote: "text-blue-500",
       admin_remove: "text-green-600",
+       admin_add: "text-purple-500", // ← 추가
     }[type];
   }
 

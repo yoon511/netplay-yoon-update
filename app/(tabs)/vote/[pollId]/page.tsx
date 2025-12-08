@@ -126,7 +126,8 @@ export default function VoteDetailPage() {
     let newP = [...participants];
     let newW = [...waitlist];
 
-    if (newP.length < poll.capacity) {
+    if (newP.length < poll!.capacity) {
+
       newP.push(user.name);
     } else {
       newW.push(user.name);

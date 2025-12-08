@@ -1,21 +1,21 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
-import { useSearchParams } from "next/navigation";
 import { db, rtdb } from "@/firebase";
+import { useSearchParams } from "next/navigation";
+import { useEffect, useMemo, useState } from "react";
 
 
 import {
+  onValue,
   ref,
-  set,
-  onValue
+  set
 } from "firebase/database";
 import {
   doc,
-  setDoc,
-  getDoc
+  getDoc,
+  setDoc
 } from "firebase/firestore";
-import { Clock, Plus, RotateCcw, Users, X } from "lucide-react";
+import { ChevronDown, ChevronUp, Clock, Plus, RotateCcw, Users, X } from "lucide-react";
 
 type Player = {
   id: number;
@@ -59,6 +59,7 @@ export default function BoardPageContent() {
   const [deleteTarget, setDeleteTarget] = useState<Player | null>(null);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showAdminBox, setShowAdminBox] = useState(false);
+  const [showPlayersList, setShowPlayersList] = useState(true);
 
   const [currentTime, setCurrentTime] = useState(Date.now());
 
@@ -460,8 +461,27 @@ async function saveAttendanceOnce(player: any) {
         )}
 
         {/* 참가자 목록 */}
-        <h2 className="font-bold text-lg mb-3">전체 참가자 ({players.length})</h2>
+        <div className="flex justify-between items-center mb-3">
+          <h2 className="font-bold text-lg">전체 참가자 ({players.length})</h2>
+          <button
+            onClick={() => setShowPlayersList(!showPlayersList)}
+            className="flex items-center gap-1 text-gray-600 hover:text-gray-800"
+          >
+            {showPlayersList ? (
+              <>
+                <span className="text-sm">접기</span>
+                <ChevronUp className="w-4 h-4" />
+              </>
+            ) : (
+              <>
+                <span className="text-sm">펼치기</span>
+                <ChevronDown className="w-4 h-4" />
+              </>
+            )}
+          </button>
+        </div>
 
+        {showPlayersList && (
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3 mb-6">
           {players.map((p) => {
             const isWaiting = safeWaitingQueues.some((q) => q.includes(p.id));
@@ -509,6 +529,7 @@ async function saveAttendanceOnce(player: any) {
             );
           })}
         </div>
+        )}
 
         {/* 선택된 인원 → 새 대기 */}
         {isAdmin && selectedPlayers.length > 0 && (

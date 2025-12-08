@@ -346,7 +346,8 @@ export default function BoardPage() {
   }, [currentTime, safeCourts, players]);
 
   // 3회 달성 시 하루 출석 저장 (중복 방지)
-async function saveAttendanceOnce(player) {
+async function saveAttendanceOnce(player: any) {
+
   const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
   const month = today.slice(0, 7); // YYYY-MM
 

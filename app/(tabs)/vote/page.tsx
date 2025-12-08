@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, Suspense } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { db } from "@/firebase";
 import { collection, getDocs, query, orderBy } from "firebase/firestore";
@@ -20,7 +20,7 @@ type Poll = {
   waitlist: any[];
 };
 
-export default function VoteListPage() {
+function VoteListContent() {
   const router = useRouter();
   const params = useSearchParams();
   const [polls, setPolls] = useState<Poll[]>([]);
@@ -152,6 +152,14 @@ export default function VoteListPage() {
         )}
       </div>
     </main>
+  );
+}
+
+export default function VoteListPage() {
+  return (
+    <Suspense fallback={<div className="p-4 bg-[#FFF8F0] min-h-screen flex items-center justify-center">로딩 중...</div>}>
+      <VoteListContent />
+    </Suspense>
   );
 }
 

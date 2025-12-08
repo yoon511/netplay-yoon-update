@@ -4,7 +4,12 @@ import "./globals.css";
 import { useSearchParams, useRouter } from "next/navigation";
 import "./globals.css";
 
-export default function RootLayout({ children }) {
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+
   const router = useRouter();
   const params = useSearchParams();
   

@@ -213,7 +213,11 @@ export default function VoteDetailPage() {
   }
 
   /** 🔥 관리자 직접 인원 추가 (게스트 체크 가능) */
-  async function adminAddPerson(name: string, to: "participant" | "waitlist", guest: boolean) {
+  async function adminAddPerson(
+    name: string,
+    to: "participant" | "waitlist",
+    guest: boolean
+  ) {
     if (!isAdmin) return alert("관리자만 가능");
     if (!name) return alert("이름을 입력하세요.");
 
@@ -236,6 +240,36 @@ export default function VoteDetailPage() {
 
     await updateDoc(ref, { participants: newP, waitlist: newW });
     await pushLog("admin_add", name);
+    loadPoll();
+  }
+
+  /** 🔥 투표 삭제 */
+  async function deletePoll() {
+    if (!isAdmin) return alert("관리자만 가능");
+
+    const ok = confirm("이 투표를 완전히 삭제할까요?");
+    if (!ok) return;
+
+    await deleteDoc(doc(db, "polls", pollId as string));
+
+    alert("삭제되었습니다.");
+    window.location.href = "/";
+  }
+
+  /** 🔧 정보 수정 저장 */
+  async function saveEdit() {
+    const ref = doc(db, "polls", pollId as string);
+
+    await updateDoc(ref, {
+      date: editForm.date,
+      time: editForm.time,
+      location: editForm.location,
+      fee: editForm.fee,
+      capacity: Number(editForm.capacity),
+    });
+
+    alert("수정 완료!");
+    setEditMode(false);
     loadPoll();
   }
 
@@ -307,9 +341,9 @@ export default function VoteDetailPage() {
     alert("랭킹 반영 취소 완료!");
   }
 
-  /** 색상 바뀐 Modern Pastel 스타일 */
+  /** 파스텔 버튼 헬퍼 */
   const pastelButton = (color: string) =>
-    `py-3 rounded-xl font-bold text-white ${color}`;
+    `w-full py-3 rounded-xl font-bold text-white ${color}`;
 
   /** 로그 색상 */
   function logColor(type: LogType) {

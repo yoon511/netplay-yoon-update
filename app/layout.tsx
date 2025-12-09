@@ -1,3 +1,23 @@
+export const metadata = {
+  title: "Netplay Badminton",
+  description: "네트플레이 배드민턴 출석 · 투표 · 랭킹 시스템",
+  openGraph: {
+    title: "Netplay Badminton",
+    description: "출석 · 투표 · 랭킹 자동화 시스템",
+    url: "https://netplay-yoon-update.vercel.app/",
+    siteName: "Netplay Badminton",
+    images: [
+      {
+        url: "/og-image.png", // public 폴더에 위치해야 함!
+        width: 1200,
+        height: 630,
+      },
+    ],
+    locale: "ko_KR",
+    type: "website",
+  },
+};
+
 "use client";
 
 import "./globals.css";

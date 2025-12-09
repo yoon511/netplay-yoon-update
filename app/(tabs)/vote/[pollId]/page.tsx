@@ -37,7 +37,6 @@ type Poll = {
   participants: any[];
   waitlist: any[];
   logs?: { type: LogType; name: string; time: string }[];
-  title?: string;
 };
 
 export default function VoteDetailPage() {
@@ -68,7 +67,6 @@ export default function VoteDetailPage() {
     grade: params.get("grade") ?? "",
     gender: params.get("gender") ?? "",
     guest: params.get("guest") === "true",
-    pin: params.get("pin") ?? "",
   };
 
   const isAdmin = params.get("admin") === "true";
@@ -112,7 +110,7 @@ export default function VoteDetailPage() {
     (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
   );
 
-  /** 🔥 로그 추가 */
+  /** 🔥 로그 푸시 */
   async function pushLog(type: LogType, name: string) {
     await updateDoc(doc(db, "polls", pollId as string), {
       logs: arrayUnion({
@@ -178,7 +176,6 @@ export default function VoteDetailPage() {
         await pushLog("promote", next);
       }
     }
-
     if (inW) newW = newW.filter((n) => n !== user.name);
 
     await updateDoc(ref, { participants: newP, waitlist: newW });
@@ -186,11 +183,11 @@ export default function VoteDetailPage() {
     loadPoll();
   }
 
-  /** 🔥 관리자 강제 삭제 */
+  /** 🔥 관리자 인원 삭제 */
   async function adminForceRemove(name: string, type: "participant" | "waitlist") {
     if (!isAdmin) return alert("관리자만 가능");
 
-    const ok = confirm(`"${name}" 님을 삭제하시겠습니까?`);
+    const ok = confirm(`"${name}" 님을 삭제할까요?`);
     if (!ok) return;
 
     const ref = doc(db, "polls", pollId as string);
@@ -215,9 +212,9 @@ export default function VoteDetailPage() {
     loadPoll();
   }
 
-  /** 🔥 관리자 직접 인원 추가 */
+  /** 🔥 관리자 인원 추가 */
   async function adminAddPerson(name: string, to: "participant" | "waitlist") {
-    if (!isAdmin) return alert("관리자만 가능합니다.");
+    if (!isAdmin) return alert("관리자만 가능");
     if (!name) return alert("이름을 입력하세요.");
 
     const ref = doc(db, "polls", pollId as string);
@@ -226,12 +223,10 @@ export default function VoteDetailPage() {
     let newW = [...waitlist];
 
     if (newP.includes(name) || newW.includes(name))
-      return alert("이미 리스트에 존재합니다.");
+      return alert("이미 포함된 이름입니다.");
 
     if (to === "participant") {
-      if (newP.length >= poll!.capacity) {
-        return alert("정원이 가득 찼습니다.");
-      }
+      if (newP.length >= poll!.capacity) return alert("정원이 가득 찼습니다.");
       newP.push(name);
     } else {
       newW.push(name);
@@ -242,20 +237,20 @@ export default function VoteDetailPage() {
     loadPoll();
   }
 
-  /** 🔧 투표 삭제 */
+  /** 🔥 투표 삭제 */
   async function deletePoll() {
-    if (!isAdmin) return alert("관리자만 가능합니다.");
+    if (!isAdmin) return alert("관리자만 가능");
 
-    const ok = confirm("정말 이 투표를 완전히 삭제하시겠습니까?");
+    const ok = confirm("이 투표를 완전히 삭제할까요?");
     if (!ok) return;
 
     await deleteDoc(doc(db, "polls", pollId as string));
 
-    alert("투표가 삭제되었습니다.");
+    alert("삭제되었습니다.");
     window.location.href = "/";
   }
 
-  /** 🔥 정보 수정 저장 */
+  /** 🔧 정보 수정 저장 */
   async function saveEdit() {
     const ref = doc(db, "polls", pollId as string);
 
@@ -278,8 +273,8 @@ export default function VoteDetailPage() {
 
     const today = new Date().toISOString().split("T")[0];
 
-    const checkedEls = document.querySelectorAll(".att-check:checked");
-    const selectedNames = Array.from(checkedEls).map(
+    const boxes = document.querySelectorAll(".att-check:checked");
+    const selectedNames = Array.from(boxes).map(
       (el: any) => el.dataset.name
     );
 
@@ -297,14 +292,42 @@ export default function VoteDetailPage() {
 
       await addDoc(collection(db, "participationLogs"), {
         userId: name,
-        grade: "", // 필요 시 확장 가능
         date: today,
-        pollId,
         createdAt: Timestamp.now(),
       });
     }
 
     alert("출석 반영 완료!");
+  }
+
+  /** 🔥 출석 취소 */
+  async function cancelAttendance() {
+    if (!isAdmin) return alert("관리자만 가능합니다.");
+
+    const today = new Date().toISOString().split("T")[0];
+
+    const boxes = document.querySelectorAll(".att-check:checked");
+    const selectedNames = Array.from(boxes).map(
+      (el: any) => el.dataset.name
+    );
+
+    if (selectedNames.length === 0)
+      return alert("선택된 인원이 없습니다.");
+
+    for (const name of selectedNames) {
+      const q = query(
+        collection(db, "participationLogs"),
+        where("userId", "==", name),
+        where("date", "==", today)
+      );
+      const snap = await getDocs(q);
+
+      for (const docSnap of snap.docs) {
+        await deleteDoc(docSnap.ref);
+      }
+    }
+
+    alert("출석 취소 완료!");
   }
 
   /** 로그 색상 */
@@ -320,6 +343,8 @@ export default function VoteDetailPage() {
 
   const safeKey = (item: any, idx: number) =>
     typeof item === "string" ? item + "_" + idx : item?.name + "_" + idx;
+
+  /** --------------------------- UI --------------------------- */
 
   return (
     <main className="p-4 pb-20 bg-[#FFF8F0] min-h-screen">
@@ -345,10 +370,7 @@ export default function VoteDetailPage() {
             <p className="mb-2">{poll.fee}</p>
 
             <p className="font-bold">👥 인원</p>
-            <p>
-              정원 {poll.capacity}명 /
-              현재 참석 {participants.length}명
-            </p>
+            <p>정원 {poll.capacity}명 / 현재 참석 {participants.length}명</p>
           </div>
         ) : (
           <div className="bg-red-50 p-4 rounded-xl mb-4 border space-y-2 text-sm">
@@ -402,10 +424,9 @@ export default function VoteDetailPage() {
           <p><b>이름:</b> {user.name}</p>
           <p><b>급수:</b> {user.grade}</p>
           <p><b>성별:</b> {user.gender}</p>
-          {user.guest && <p className="text-red-500 text-xs mt-1">게스트</p>}
         </div>
 
-        {/* 참석 / 취소 버튼 */}
+        {/* 참석 / 취소 */}
         <div className="grid grid-cols-2 gap-3 mb-4">
           <button
             onClick={handleJoin}
@@ -446,7 +467,7 @@ export default function VoteDetailPage() {
           </>
         )}
 
-        {/* 관리자 직접 인원 추가 */}
+        {/* 관리자 인원 추가 */}
         {isAdmin && (
           <div className="p-3 bg-blue-50 rounded-xl mb-4">
             <input
@@ -524,18 +545,27 @@ export default function VoteDetailPage() {
           )}
         </div>
 
-        {/* 출석 반영 버튼 */}
+        {/* 출석 반영 & 취소 버튼 */}
         {isAdmin && (
-          <button
-            onClick={applyAttendance}
-            className="w-full bg-green-600 text-white py-3 rounded-xl font-bold mt-4"
-          >
-            ✔ 출석 반영하기
-          </button>
+          <div className="grid grid-cols-2 gap-3">
+            <button
+              onClick={applyAttendance}
+              className="w-full bg-green-600 text-white py-3 rounded-xl font-bold"
+            >
+              ✔ 출석 반영
+            </button>
+
+            <button
+              onClick={cancelAttendance}
+              className="w-full bg-gray-700 text-white py-3 rounded-xl font-bold"
+            >
+              ❌ 출석 취소
+            </button>
+          </div>
         )}
 
         {/* 대기자 */}
-        <div className="mb-3">
+        <div className="mb-3 mt-4">
           <button
             className="w-full flex justify-between items-center bg-yellow-100 p-3 rounded-xl text-sm font-bold"
             onClick={() => setExpanded((s) => ({ ...s, wait: !s.wait }))}
@@ -576,8 +606,7 @@ export default function VoteDetailPage() {
               <div className="bg-gray-50 p-3 border rounded-b-xl max-h-64 overflow-y-auto text-xs space-y-1">
                 {logs.map((log, idx) => (
                   <div key={idx} className={logColor(log.type)}>
-                    ● [{log.type}] {log.name} —{" "}
-                    {new Date(log.time).toLocaleString("ko-KR")}
+                    ● [{log.type}] {log.name} — {new Date(log.time).toLocaleString("ko-KR")}
                   </div>
                 ))}
               </div>

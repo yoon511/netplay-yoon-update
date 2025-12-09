@@ -12,7 +12,7 @@ export const metadata = {
     siteName: "Netplay Badminton",
     images: [
       {
-        url: "/og-image.png",
+        url: "/og-image.jpg",
         width: 1200,
         height: 630,
       },

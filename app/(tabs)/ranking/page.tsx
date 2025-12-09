@@ -1,78 +1,55 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { collection, getDocs } from "firebase/firestore";
+import {
+  collection,
+  getDocs,
+  query,
+  where,
+} from "firebase/firestore";
 import { db } from "@/firebase";
-
 
 type RankItem = {
   name: string;
-  grade: string;
   count: number;
 };
 
 export default function RankingPage() {
-  const monthKey = new Date().toISOString().slice(0, 7); // YYYY-MM
   const [ranking, setRanking] = useState<RankItem[]>([]);
 
   useEffect(() => {
     loadRanking();
   }, []);
 
-  /** 🔥 월간 랭킹 불러오기 */
+  /** 🔥 participationLogs 기반 월간 랭킹 */
   async function loadRanking() {
-    try {
-      // ✔ days 컬렉션 불러오기
-      const daysRef = collection(db, "attendance", monthKey, "days");
-      const daysSnap = await getDocs(daysRef);
+    const month = new Date().toISOString().slice(0, 7); // YYYY-MM
+    const start = `${month}-01`;
+    const end = `${month}-31`;
 
-      const counts: Record<string, { grade: string; count: number }> = {};
+    const q = query(
+      collection(db, "participationLogs"),
+      where("date", ">=", start),
+      where("date", "<=", end)
+    );
 
-      // 각 날짜 처리
-      for (const day of daysSnap.docs) {
-        // ✔ players 컬렉션 불러오기
-        const playersRef = collection(
-          db,
-          "attendance",
-          monthKey,
-          "days",
-          day.id,
-          "players"
-        );
+    const snap = await getDocs(q);
 
-        const peopleSnap = await getDocs(playersRef);
+    const counts: Record<string, number> = {};
 
-        peopleSnap.forEach((doc) => {
-          const d = doc.data();
-          if (d.guest) return; // 게스트 제외
+    snap.forEach((doc) => {
+      const d = doc.data();
+      const name = d.userId;
+      counts[name] = (counts[name] || 0) + 1;
+    });
 
-          if (!counts[d.name]) {
-            counts[d.name] = {
-              grade: d.grade,
-              count: 1,
-            };
-          } else {
-            counts[d.name].count += 1;
-          }
-        });
-      }
+    const list = Object.entries(counts)
+      .map(([name, count]) => ({ name, count }))
+      .sort((a, b) => b.count - a.count);
 
-      // 정렬 및 배열로 변환
-      const list = Object.entries(counts)
-        .map(([name, data]) => ({
-          name,
-          grade: data.grade,
-          count: data.count,
-        }))
-        .sort((a, b) => b.count - a.count);
-
-      setRanking(list);
-    } catch (err) {
-      console.error(err);
-    }
+    setRanking(list);
   }
 
-  /** 메달 표시 */
   const medal = (rank: number) => {
     if (rank === 1) return "🥇";
     if (rank === 2) return "🥈";
@@ -80,18 +57,17 @@ export default function RankingPage() {
     return "🎾";
   };
 
+  const monthKey = new Date().toISOString().slice(0, 7);
+
   return (
     <main className="p-4 pb-20 bg-gradient-to-br from-[#FFF7D6] to-[#FFEFAA] min-h-screen">
       <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow p-6">
-
         <h1 className="text-3xl font-bold text-center mb-6 text-yellow-600">
           🏆 월간 랭킹 ({monthKey}) 🏆
         </h1>
 
         {ranking.length === 0 && (
-          <p className="text-center text-gray-500">
-            이번 달 출석 데이터가 없습니다.
-          </p>
+          <p className="text-center text-gray-500">이번 달 출석 데이터가 없습니다.</p>
         )}
 
         <div className="space-y-3">
@@ -113,15 +89,11 @@ export default function RankingPage() {
 
               <div className="text-right">
                 <div className="font-bold">{item.name}</div>
-                <div className="text-sm text-gray-600">{item.grade}</div>
-                <div className="text-sm font-semibold">
-                  {item.count}회 출석
-                </div>
+                <div className="text-sm font-semibold">{item.count}회 출석</div>
               </div>
             </div>
           ))}
         </div>
-
       </div>
     </main>
   );

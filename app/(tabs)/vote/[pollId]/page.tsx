@@ -11,22 +11,28 @@ import {
   updateDoc,
   arrayUnion,
   deleteDoc,
+  query,
+  where,
+  getDocs,
+  addDoc,
+  collection,
+  Timestamp,
 } from "firebase/firestore";
+
 import ModalConfirm from "../components/ModalConfirm";
 
-type LogType = 
+type LogType =
   | "join"
   | "cancel"
   | "promote"
   | "admin_remove"
-  | "admin_add";     // ← 이것 추가해야 TypeScript 오류 해결됨
-
+  | "admin_add";
 
 type Poll = {
   date: string;
   time: string;
   location: string;
-  fee: string;        // ← 비용 하나로 통합
+  fee: string;
   capacity: number;
   participants: any[];
   waitlist: any[];
@@ -85,7 +91,7 @@ export default function VoteDetailPage() {
         date: data.date,
         time: data.time,
         location: data.location,
-        fee: data.fee,       // ← fee 하나만 초기화
+        fee: data.fee,
         capacity: String(data.capacity),
       });
     }
@@ -106,7 +112,7 @@ export default function VoteDetailPage() {
     (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
   );
 
-  /** 🔥 공통 로그 푸시 */
+  /** 🔥 로그 추가 */
   async function pushLog(type: LogType, name: string) {
     await updateDoc(doc(db, "polls", pollId as string), {
       logs: arrayUnion({
@@ -133,7 +139,6 @@ export default function VoteDetailPage() {
     let newW = [...waitlist];
 
     if (newP.length < poll!.capacity) {
-
       newP.push(user.name);
     } else {
       newW.push(user.name);
@@ -144,7 +149,7 @@ export default function VoteDetailPage() {
     loadPoll();
   }
 
-  /** 🔥 취소 모달 오픈 */
+  /** 🔥 취소 모달 */
   function openCancelModal() {
     if (!user.name) return alert("로그인 오류");
     setShowCancelModal(true);
@@ -166,7 +171,6 @@ export default function VoteDetailPage() {
 
     if (inP) {
       newP = newP.filter((n) => n !== user.name);
-
       if (newW.length > 0) {
         const next = newW[0];
         newW = newW.slice(1);
@@ -196,7 +200,6 @@ export default function VoteDetailPage() {
 
     if (type === "participant") {
       newP = newP.filter((n) => n !== name);
-
       if (newW.length > 0) {
         const next = newW[0];
         newW = newW.slice(1);
@@ -209,7 +212,6 @@ export default function VoteDetailPage() {
 
     await updateDoc(ref, { participants: newP, waitlist: newW });
     await pushLog("admin_remove", name);
-
     loadPoll();
   }
 
@@ -228,7 +230,6 @@ export default function VoteDetailPage() {
 
     if (to === "participant") {
       if (newP.length >= poll!.capacity) {
-
         return alert("정원이 가득 찼습니다.");
       }
       newP.push(name);
@@ -241,7 +242,7 @@ export default function VoteDetailPage() {
     loadPoll();
   }
 
-  /** 🔥 관리자 투표 삭제 */
+  /** 🔧 투표 삭제 */
   async function deletePoll() {
     if (!isAdmin) return alert("관리자만 가능합니다.");
 
@@ -254,7 +255,7 @@ export default function VoteDetailPage() {
     window.location.href = "/";
   }
 
-  /** 🔧 관리자 정보 수정 저장 */
+  /** 🔥 정보 수정 저장 */
   async function saveEdit() {
     const ref = doc(db, "polls", pollId as string);
 
@@ -262,13 +263,48 @@ export default function VoteDetailPage() {
       date: editForm.date,
       time: editForm.time,
       location: editForm.location,
-      fee: editForm.fee,               // ← 비용 저장
+      fee: editForm.fee,
       capacity: Number(editForm.capacity),
     });
 
     alert("수정 완료!");
     setEditMode(false);
     loadPoll();
+  }
+
+  /** 🔥 출석 반영 */
+  async function applyAttendance() {
+    if (!isAdmin) return alert("관리자만 가능합니다.");
+
+    const today = new Date().toISOString().split("T")[0];
+
+    const checkedEls = document.querySelectorAll(".att-check:checked");
+    const selectedNames = Array.from(checkedEls).map(
+      (el: any) => el.dataset.name
+    );
+
+    if (selectedNames.length === 0)
+      return alert("선택된 인원이 없습니다.");
+
+    for (const name of selectedNames) {
+      const q = query(
+        collection(db, "participationLogs"),
+        where("userId", "==", name),
+        where("date", "==", today)
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) continue;
+
+      await addDoc(collection(db, "participationLogs"), {
+        userId: name,
+        grade: "", // 필요 시 확장 가능
+        date: today,
+        pollId,
+        createdAt: Timestamp.now(),
+      });
+    }
+
+    alert("출석 반영 완료!");
   }
 
   /** 로그 색상 */
@@ -278,11 +314,10 @@ export default function VoteDetailPage() {
       cancel: "text-red-500",
       promote: "text-blue-500",
       admin_remove: "text-green-600",
-       admin_add: "text-purple-500", // ← 추가
+      admin_add: "text-purple-500",
     }[type];
   }
 
-  /** 안전 키 */
   const safeKey = (item: any, idx: number) =>
     typeof item === "string" ? item + "_" + idx : item?.name + "_" + idx;
 
@@ -294,7 +329,7 @@ export default function VoteDetailPage() {
           Netplay 참석 투표 🗳️
         </h1>
 
-        {/* 🔥 모임 정보 */}
+        {/* 모임 정보 */}
         {!editMode ? (
           <div className="bg-red-100 p-4 rounded-xl text-sm mb-4 border">
             <p className="font-bold">📅 날짜</p>
@@ -311,7 +346,8 @@ export default function VoteDetailPage() {
 
             <p className="font-bold">👥 인원</p>
             <p>
-              정원 {poll.capacity}명 / 현재 참석 {participants.length}명
+              정원 {poll.capacity}명 /
+              현재 참석 {participants.length}명
             </p>
           </div>
         ) : (
@@ -323,12 +359,14 @@ export default function VoteDetailPage() {
               onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
               placeholder="날짜"
             />
+
             <input
               className="w-full p-2 border rounded"
               value={editForm.time}
               onChange={(e) => setEditForm({ ...editForm, time: e.target.value })}
               placeholder="시간"
             />
+
             <input
               className="w-full p-2 border rounded"
               value={editForm.location}
@@ -340,7 +378,7 @@ export default function VoteDetailPage() {
               className="w-full p-2 border rounded"
               value={editForm.fee}
               onChange={(e) => setEditForm({ ...editForm, fee: e.target.value })}
-              placeholder="비용 (예: 일반 8000원 / 게스트 무료)"
+              placeholder="비용"
             />
 
             <input
@@ -369,20 +407,26 @@ export default function VoteDetailPage() {
 
         {/* 참석 / 취소 버튼 */}
         <div className="grid grid-cols-2 gap-3 mb-4">
-          <button onClick={handleJoin} className="bg-red-400 text-white py-3 rounded-xl font-bold">
+          <button
+            onClick={handleJoin}
+            className="bg-red-400 text-white py-3 rounded-xl font-bold"
+          >
             참석하기
           </button>
-          <button onClick={openCancelModal} className="bg-gray-400 text-white py-3 rounded-xl font-bold">
+          <button
+            onClick={openCancelModal}
+            className="bg-gray-400 text-white py-3 rounded-xl font-bold"
+          >
             취소하기
           </button>
         </div>
 
         {/* 관리자 버튼 */}
         {isAdmin && (
-          <div className="mb-4 space-y-2">
+          <>
             <button
               onClick={() => setEditMode(!editMode)}
-              className="w-full py-2 bg-yellow-300 rounded-xl font-bold"
+              className="w-full py-2 bg-yellow-300 rounded-xl font-bold mb-2"
             >
               {editMode ? "수정 종료" : "✏ 정보 수정"}
             </button>
@@ -393,17 +437,13 @@ export default function VoteDetailPage() {
             >
               ❌ 투표 삭제
             </button>
-          </div>
-        )}
 
-        {isAdmin && (
-          <div className="mt-2">
             <Link href="/vote/new">
-              <button className="w-full py-2 bg-blue-500 text-white rounded-xl font-bold">
+              <button className="w-full py-2 bg-blue-500 text-white rounded-xl font-bold mt-2">
                 ➕ 새 투표 만들기
               </button>
             </Link>
-          </div>
+          </>
         )}
 
         {/* 관리자 직접 인원 추가 */}
@@ -439,7 +479,7 @@ export default function VoteDetailPage() {
           </div>
         )}
 
-        {/* 참석자 */}
+        {/* 참석자 목록 */}
         <div className="mb-3">
           <button
             className="w-full flex justify-between items-center bg-red-100 p-3 rounded-xl text-sm font-bold"
@@ -458,7 +498,17 @@ export default function VoteDetailPage() {
                     key={safeKey(n, idx)}
                     className="flex justify-between border-b py-1 text-sm"
                   >
-                    {name}
+                    <div className="flex items-center gap-2">
+                      {isAdmin && (
+                        <input
+                          type="checkbox"
+                          className="att-check"
+                          data-name={name}
+                        />
+                      )}
+                      {name}
+                    </div>
+
                     {isAdmin && (
                       <button
                         onClick={() => adminForceRemove(name, "participant")}
@@ -473,6 +523,16 @@ export default function VoteDetailPage() {
             </div>
           )}
         </div>
+
+        {/* 출석 반영 버튼 */}
+        {isAdmin && (
+          <button
+            onClick={applyAttendance}
+            className="w-full bg-green-600 text-white py-3 rounded-xl font-bold mt-4"
+          >
+            ✔ 출석 반영하기
+          </button>
+        )}
 
         {/* 대기자 */}
         <div className="mb-3">
@@ -494,14 +554,6 @@ export default function VoteDetailPage() {
                     className="flex justify-between border-b py-1 text-sm"
                   >
                     대기 {idx + 1}. {name}
-                    {isAdmin && (
-                      <button
-                        onClick={() => adminForceRemove(name, "waitlist")}
-                        className="text-red-500 text-xs"
-                      >
-                        제거
-                      </button>
-                    )}
                   </div>
                 );
               })}

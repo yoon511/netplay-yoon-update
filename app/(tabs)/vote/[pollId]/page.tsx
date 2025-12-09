@@ -500,50 +500,80 @@ export default function VoteDetailPage() {
           </div>
         )}
 
-        {/* 참석자 목록 */}
-        <div className="mb-3">
+       {/* 참석자 목록 */}
+<div className="mb-3">
+  <button
+    className="w-full flex justify-between items-center bg-red-100 p-3 rounded-xl text-sm font-bold"
+    onClick={() => setExpanded((s) => ({ ...s, attend: !s.attend }))}
+  >
+    참석자 ({participants.length})
+    <span>{expanded.attend ? "▲" : "▼"}</span>
+  </button>
+
+  {expanded.attend && (
+    <div className="bg-red-50 p-3 border rounded-b-xl">
+
+      {/* 🔥 전체 선택 / 해제 버튼 */}
+      {isAdmin && (
+        <div className="flex gap-2 mb-3">
           <button
-            className="w-full flex justify-between items-center bg-red-100 p-3 rounded-xl text-sm font-bold"
-            onClick={() => setExpanded((s) => ({ ...s, attend: !s.attend }))}
+            onClick={() => {
+              document.querySelectorAll(".att-check").forEach((el: any) => {
+                el.checked = true;
+              });
+            }}
+            className="flex-1 bg-green-500 text-white py-2 rounded-xl"
           >
-            참석자 ({participants.length})
-            <span>{expanded.attend ? "▲" : "▼"}</span>
+            ✔ 전체 선택
           </button>
 
-          {expanded.attend && (
-            <div className="bg-red-50 p-3 border rounded-b-xl">
-              {participants.map((n, idx) => {
-                const name = typeof n === "string" ? n : n.name;
-                return (
-                  <div
-                    key={safeKey(n, idx)}
-                    className="flex justify-between border-b py-1 text-sm"
-                  >
-                    <div className="flex items-center gap-2">
-                      {isAdmin && (
-                        <input
-                          type="checkbox"
-                          className="att-check"
-                          data-name={name}
-                        />
-                      )}
-                      {name}
-                    </div>
-
-                    {isAdmin && (
-                      <button
-                        onClick={() => adminForceRemove(name, "participant")}
-                        className="text-red-500 text-xs"
-                      >
-                        제거
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <button
+            onClick={() => {
+              document.querySelectorAll(".att-check").forEach((el: any) => {
+                el.checked = false;
+              });
+            }}
+            className="flex-1 bg-gray-500 text-white py-2 rounded-xl"
+          >
+            ❌ 전체 해제
+          </button>
         </div>
+      )}
+
+      {/* 🔥 참가자 리스트 */}
+      {participants.map((n, idx) => {
+        const name = typeof n === "string" ? n : n.name;
+        return (
+          <div
+            key={safeKey(n, idx)}
+            className="flex justify-between border-b py-1 text-sm"
+          >
+            <div className="flex items-center gap-2">
+              {isAdmin && (
+                <input
+                  type="checkbox"
+                  className="att-check"
+                  data-name={name}
+                />
+              )}
+              {name}
+            </div>
+
+            {isAdmin && (
+              <button
+                onClick={() => adminForceRemove(name, "participant")}
+                className="text-red-500 text-xs"
+              >
+                제거
+              </button>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  )}
+</div>
+
 
         {/* 출석 반영 & 취소 버튼 */}
         {isAdmin && (

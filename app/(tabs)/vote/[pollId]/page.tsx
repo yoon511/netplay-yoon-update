@@ -11,14 +11,7 @@ import {
   updateDoc,
   arrayUnion,
   deleteDoc,
-  query,
-  where,
-  getDocs,
-  addDoc,
-  collection,
-  Timestamp,
 } from "firebase/firestore";
-
 import ModalConfirm from "../components/ModalConfirm";
 
 type LogType =
@@ -37,6 +30,7 @@ type Poll = {
   participants: any[];
   waitlist: any[];
   logs?: { type: LogType; name: string; time: string }[];
+  title?: string;
 };
 
 export default function VoteDetailPage() {
@@ -67,6 +61,7 @@ export default function VoteDetailPage() {
     grade: params.get("grade") ?? "",
     gender: params.get("gender") ?? "",
     guest: params.get("guest") === "true",
+    pin: params.get("pin") ?? "",
   };
 
   const isAdmin = params.get("admin") === "true";
@@ -110,7 +105,7 @@ export default function VoteDetailPage() {
     (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
   );
 
-  /** 🔥 로그 추가 */
+  /** 🔥 공통 로그 푸시 */
   async function pushLog(type: LogType, name: string) {
     await updateDoc(doc(db, "polls", pollId as string), {
       logs: arrayUnion({
@@ -120,7 +115,6 @@ export default function VoteDetailPage() {
       }),
     });
   }
-
   /** 🔥 참석하기 */
   async function handleJoin() {
     if (!user.name) return alert("로그인이 필요합니다.");
@@ -147,13 +141,13 @@ export default function VoteDetailPage() {
     loadPoll();
   }
 
-  /** 🔥 취소 모달 열기 */
+  /** 🔥 취소 모달 오픈 */
   function openCancelModal() {
     if (!user.name) return alert("로그인 오류");
     setShowCancelModal(true);
   }
 
-  /** 🔥 취소 처리 */
+  /** 🔥 참석 취소 */
   async function handleCancel() {
     setShowCancelModal(false);
 
@@ -169,6 +163,7 @@ export default function VoteDetailPage() {
 
     if (inP) {
       newP = newP.filter((n) => n !== user.name);
+
       if (newW.length > 0) {
         const next = newW[0];
         newW = newW.slice(1);
@@ -176,6 +171,7 @@ export default function VoteDetailPage() {
         await pushLog("promote", next);
       }
     }
+
     if (inW) newW = newW.filter((n) => n !== user.name);
 
     await updateDoc(ref, { participants: newP, waitlist: newW });
@@ -187,7 +183,7 @@ export default function VoteDetailPage() {
   async function adminForceRemove(name: string, type: "participant" | "waitlist") {
     if (!isAdmin) return alert("관리자만 가능");
 
-    const ok = confirm(`"${name}" 님을 삭제할까요?`);
+    const ok = confirm(`"${name}" 님을 삭제하시겠습니까?`);
     if (!ok) return;
 
     const ref = doc(db, "polls", pollId as string);
@@ -197,6 +193,7 @@ export default function VoteDetailPage() {
 
     if (type === "participant") {
       newP = newP.filter((n) => n !== name);
+
       if (newW.length > 0) {
         const next = newW[0];
         newW = newW.slice(1);
@@ -209,12 +206,13 @@ export default function VoteDetailPage() {
 
     await updateDoc(ref, { participants: newP, waitlist: newW });
     await pushLog("admin_remove", name);
+
     loadPoll();
   }
 
   /** 🔥 관리자 직접 인원 추가 */
   async function adminAddPerson(name: string, to: "participant" | "waitlist") {
-    if (!isAdmin) return alert("관리자만 가능");
+    if (!isAdmin) return alert("관리자만 가능합니다.");
     if (!name) return alert("이름을 입력하세요.");
 
     const ref = doc(db, "polls", pollId as string);
@@ -223,10 +221,12 @@ export default function VoteDetailPage() {
     let newW = [...waitlist];
 
     if (newP.includes(name) || newW.includes(name))
-      return alert("이미 포함된 이름입니다.");
+      return alert("이미 리스트에 존재합니다.");
 
     if (to === "participant") {
-      if (newP.length >= poll!.capacity) return alert("정원이 가득 찼습니다.");
+      if (newP.length >= poll!.capacity) {
+        return alert("정원이 가득 찼습니다.");
+      }
       newP.push(name);
     } else {
       newW.push(name);
@@ -237,20 +237,19 @@ export default function VoteDetailPage() {
     loadPoll();
   }
 
-  /** 🔥 투표 삭제 */
+  /** 🔥 투표 완전 삭제 */
   async function deletePoll() {
-    if (!isAdmin) return alert("관리자만 가능");
+    if (!isAdmin) return alert("관리자만 가능합니다.");
 
-    const ok = confirm("이 투표를 완전히 삭제할까요?");
+    const ok = confirm("정말 이 투표를 완전히 삭제하시겠습니까?");
     if (!ok) return;
 
     await deleteDoc(doc(db, "polls", pollId as string));
 
-    alert("삭제되었습니다.");
+    alert("투표가 삭제되었습니다.");
     window.location.href = "/";
   }
-
-  /** 🔧 정보 수정 저장 */
+  /** 🔧 관리자 정보 수정 저장 */
   async function saveEdit() {
     const ref = doc(db, "polls", pollId as string);
 
@@ -267,75 +266,6 @@ export default function VoteDetailPage() {
     loadPoll();
   }
 
-  /** 🔥 출석 반영 (모임 날짜 poll.date 기준) */
-  async function applyAttendance() {
-    if (!isAdmin) return alert("관리자만 가능합니다.");
-    if (!poll) return alert("투표 정보를 불러오지 못했습니다.");
-
-    const pollDate = poll.date; // 🔥 이 투표의 모임 날짜
-
-    const boxes = document.querySelectorAll(".att-check:checked");
-    const selectedNames = Array.from(boxes).map(
-      (el: any) => el.dataset.name
-    );
-
-    if (selectedNames.length === 0)
-      return alert("선택된 인원이 없습니다.");
-
-    for (const name of selectedNames) {
-      // 같은 날짜 + 같은 사람 출석 중복 방지
-      const qSnap = await getDocs(
-        query(
-          collection(db, "participationLogs"),
-          where("userId", "==", name),
-          where("date", "==", pollDate)
-        )
-      );
-      if (!qSnap.empty) continue;
-
-      await addDoc(collection(db, "participationLogs"), {
-        userId: name,
-        date: pollDate,     // 🔥 모임 날짜 기준
-        pollId,
-        createdAt: Timestamp.now(),
-      });
-    }
-
-    alert("출석 반영 완료!");
-  }
-
-  /** 🔥 출석 취소 (이 투표 날짜 기준으로 삭제) */
-  async function cancelAttendance() {
-    if (!isAdmin) return alert("관리자만 가능합니다.");
-    if (!poll) return alert("투표 정보를 불러오지 못했습니다.");
-
-    const pollDate = poll.date;
-
-    const boxes = document.querySelectorAll(".att-check:checked");
-    const selectedNames = Array.from(boxes).map(
-      (el: any) => el.dataset.name
-    );
-
-    if (selectedNames.length === 0)
-      return alert("선택된 인원이 없습니다.");
-
-    for (const name of selectedNames) {
-      const qSnap = await getDocs(
-        query(
-          collection(db, "participationLogs"),
-          where("userId", "==", name),
-          where("date", "==", pollDate)
-        )
-      );
-
-      for (const d of qSnap.docs) {
-        await deleteDoc(d.ref);
-      }
-    }
-
-    alert("출석 취소 완료!");
-  }
-
   /** 로그 색상 */
   function logColor(type: LogType) {
     return {
@@ -347,10 +277,9 @@ export default function VoteDetailPage() {
     }[type];
   }
 
+  /** 안전 키 */
   const safeKey = (item: any, idx: number) =>
     typeof item === "string" ? item + "_" + idx : item?.name + "_" + idx;
-
-  /** --------------------------- UI --------------------------- */
 
   return (
     <main className="p-4 pb-20 bg-[#FFF8F0] min-h-screen">
@@ -360,7 +289,7 @@ export default function VoteDetailPage() {
           Netplay 참석 투표 🗳️
         </h1>
 
-        {/* 모임 정보 */}
+        {/* 🔥 모임 정보 */}
         {!editMode ? (
           <div className="bg-red-100 p-4 rounded-xl text-sm mb-4 border">
             <p className="font-bold">📅 날짜</p>
@@ -376,7 +305,9 @@ export default function VoteDetailPage() {
             <p className="mb-2">{poll.fee}</p>
 
             <p className="font-bold">👥 인원</p>
-            <p>정원 {poll.capacity}명 / 현재 참석 {participants.length}명</p>
+            <p>
+              정원 {poll.capacity}명 / 현재 참석 {participants.length}명
+            </p>
           </div>
         ) : (
           <div className="bg-red-50 p-4 rounded-xl mb-4 border space-y-2 text-sm">
@@ -387,14 +318,12 @@ export default function VoteDetailPage() {
               onChange={(e) => setEditForm({ ...editForm, date: e.target.value })}
               placeholder="날짜"
             />
-
             <input
               className="w-full p-2 border rounded"
               value={editForm.time}
               onChange={(e) => setEditForm({ ...editForm, time: e.target.value })}
               placeholder="시간"
             />
-
             <input
               className="w-full p-2 border rounded"
               value={editForm.location}
@@ -433,7 +362,7 @@ export default function VoteDetailPage() {
           {user.guest && <p className="text-red-500 text-xs mt-1">게스트</p>}
         </div>
 
-        {/* 참석 / 취소 */}
+        {/* 참석 / 취소 버튼 */}
         <div className="grid grid-cols-2 gap-3 mb-4">
           <button
             onClick={handleJoin}
@@ -451,12 +380,28 @@ export default function VoteDetailPage() {
 
         {/* 관리자 버튼 */}
         {isAdmin && (
-          <>
+          <div className="mb-4 space-y-2">
             <button
               onClick={() => setEditMode(!editMode)}
-              className="w-full py-2 bg-yellow-300 rounded-xl font-bold mb-2"
+              className="w-full py-2 bg-yellow-300 rounded-xl font-bold"
             >
               {editMode ? "수정 종료" : "✏ 정보 수정"}
+            </button>
+
+            {/* 🔥 문구 변경: 출석 반영 → 랭킹 반영 */}
+            <button
+              onClick={() => alert('이 기능은 너가 만든 출석 반영 로직과 연결됨!')}
+              className="w-full py-2 bg-green-300 rounded-xl font-bold"
+            >
+              📊 랭킹 반영
+            </button>
+
+            {/* 🔥 문구 변경: 출석 취소 → 랭킹 반영 취소 */}
+            <button
+              onClick={() => alert('이 기능은 출석 취소 로직과 연결됨!')}
+              className="w-full py-2 bg-red-300 rounded-xl font-bold"
+            >
+              ❌ 랭킹 반영 취소
             </button>
 
             <button
@@ -465,16 +410,19 @@ export default function VoteDetailPage() {
             >
               ❌ 투표 삭제
             </button>
+          </div>
+        )}
 
+        {isAdmin && (
+          <div className="mt-2">
             <Link href="/vote/new">
-              <button className="w-full py-2 bg-blue-500 text-white rounded-xl font-bold mt-2">
+              <button className="w-full py-2 bg-blue-500 text-white rounded-xl font-bold">
                 ➕ 새 투표 만들기
               </button>
             </Link>
-          </>
+          </div>
         )}
-
-        {/* 관리자 인원 추가 */}
+        {/* 관리자 직접 인원 추가 */}
         {isAdmin && (
           <div className="p-3 bg-blue-50 rounded-xl mb-4">
             <input
@@ -484,22 +432,24 @@ export default function VoteDetailPage() {
             />
 
             <div className="grid grid-cols-2 gap-2">
+              {/* ✔ 파스텔톤 참석 + 추가 */}
               <button
                 onClick={() => {
                   const name = (document.getElementById("adminAdd") as HTMLInputElement).value;
                   adminAddPerson(name, "participant");
                 }}
-                className="bg-green-600 text-white rounded p-2"
+                className="bg-[#B4F8C8] text-gray-700 rounded-xl py-2 font-semibold shadow"
               >
                 참석 + 추가
               </button>
 
+              {/* ✔ 파스텔톤 대기 + 추가 */}
               <button
                 onClick={() => {
                   const name = (document.getElementById("adminAdd") as HTMLInputElement).value;
                   adminAddPerson(name, "waitlist");
                 }}
-                className="bg-yellow-600 text-white rounded p-2"
+                className="bg-[#FCECC9] text-gray-700 rounded-xl py-2 font-semibold shadow"
               >
                 대기 + 추가
               </button>
@@ -507,7 +457,7 @@ export default function VoteDetailPage() {
           </div>
         )}
 
-        {/* 참석자 목록 */}
+        {/* 참석자 */}
         <div className="mb-3">
           <button
             className="w-full flex justify-between items-center bg-red-100 p-3 rounded-xl text-sm font-bold"
@@ -519,33 +469,6 @@ export default function VoteDetailPage() {
 
           {expanded.attend && (
             <div className="bg-red-50 p-3 border rounded-b-xl">
-              {/* 전체 선택 / 해제 버튼 */}
-              {isAdmin && (
-                <div className="flex gap-2 mb-3">
-                  <button
-                    onClick={() => {
-                      document.querySelectorAll(".att-check").forEach((el: any) => {
-                        el.checked = true;
-                      });
-                    }}
-                    className="flex-1 bg-green-500 text-white py-2 rounded-xl"
-                  >
-                    ✔ 전체 선택
-                  </button>
-
-                  <button
-                    onClick={() => {
-                      document.querySelectorAll(".att-check").forEach((el: any) => {
-                        el.checked = false;
-                      });
-                    }}
-                    className="flex-1 bg-gray-500 text-white py-2 rounded-xl"
-                  >
-                    ❌ 전체 해제
-                  </button>
-                </div>
-              )}
-
               {participants.map((n, idx) => {
                 const name = typeof n === "string" ? n : n.name;
                 return (
@@ -553,17 +476,7 @@ export default function VoteDetailPage() {
                     key={safeKey(n, idx)}
                     className="flex justify-between border-b py-1 text-sm"
                   >
-                    <div className="flex items-center gap-2">
-                      {isAdmin && (
-                        <input
-                          type="checkbox"
-                          className="att-check"
-                          data-name={name}
-                        />
-                      )}
-                      {name}
-                    </div>
-
+                    {name}
                     {isAdmin && (
                       <button
                         onClick={() => adminForceRemove(name, "participant")}
@@ -579,27 +492,8 @@ export default function VoteDetailPage() {
           )}
         </div>
 
-        {/* 출석 반영 & 취소 버튼 */}
-        {isAdmin && (
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={applyAttendance}
-              className="w-full bg-green-600 text-white py-3 rounded-xl font-bold"
-            >
-              ✔ 출석 반영
-            </button>
-
-            <button
-              onClick={cancelAttendance}
-              className="w-full bg-gray-700 text-white py-3 rounded-xl font-bold"
-            >
-              ❌ 출석 취소
-            </button>
-          </div>
-        )}
-
         {/* 대기자 */}
-        <div className="mb-3 mt-4">
+        <div className="mb-3">
           <button
             className="w-full flex justify-between items-center bg-yellow-100 p-3 rounded-xl text-sm font-bold"
             onClick={() => setExpanded((s) => ({ ...s, wait: !s.wait }))}
@@ -618,6 +512,14 @@ export default function VoteDetailPage() {
                     className="flex justify-between border-b py-1 text-sm"
                   >
                     대기 {idx + 1}. {name}
+                    {isAdmin && (
+                      <button
+                        onClick={() => adminForceRemove(name, "waitlist")}
+                        className="text-red-500 text-xs"
+                      >
+                        제거
+                      </button>
+                    )}
                   </div>
                 );
               })}
@@ -625,7 +527,7 @@ export default function VoteDetailPage() {
           )}
         </div>
 
-        {/* 로그 */}
+        {/* 변경 로그 */}
         {isAdmin && (
           <div className="mt-4">
             <button

@@ -253,7 +253,7 @@ export default function VoteDetailPage() {
     await deleteDoc(doc(db, "polls", pollId as string));
 
     alert("삭제되었습니다.");
-    window.location.href = "/";
+window.location.href = `/?name=${user.name}&grade=${user.grade}&gender=${user.gender}&guest=${user.guest}&admin=true`;
   }
 
   /** 🔧 정보 수정 저장 */

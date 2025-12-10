@@ -11,8 +11,8 @@ type RankItem = {
 
 export default function RankingPage() {
   const today = new Date();
-  const currentMonth = today.toISOString().slice(0, 7); // YYYY-MM
-  const minMonth = "2025-11"; // 🔥 이전달은 여기보다 작아지면 안됨
+  const currentMonth = today.toISOString().slice(0, 7); // ex: 2025-12
+  const minMonth = "2025-11";
 
   const [month, setMonth] = useState(currentMonth);
   const [ranking, setRanking] = useState<RankItem[]>([]);
@@ -50,6 +50,20 @@ export default function RankingPage() {
     }
   }
 
+  /** 🟨 공동 등수 계산 */
+  function getRank(index: number) {
+    if (index === 0) return 1;
+
+    const prev = ranking[index - 1];
+    const curr = ranking[index];
+
+    if (prev.count === curr.count) {
+      return getRank(index - 1);
+    }
+
+    return index + 1;
+  }
+
   /** 🏅 메달 표시 */
   const medal = (rank: number) => {
     if (rank === 1) return "🥇";
@@ -57,14 +71,6 @@ export default function RankingPage() {
     if (rank === 3) return "🥉";
     return "🎾";
   };
-
-  /** 🟨 공동 등수 계산 */
-  function getRank(index: number) {
-    if (index === 0) return 1;
-    if (ranking[index].count === ranking[index - 1].count)
-      return getRank(index - 1);
-    return index + 1;
-  }
 
   /** 🟦 배경색 */
   const bgColor = (rank: number) => {
@@ -74,17 +80,26 @@ export default function RankingPage() {
     return "bg-gray-100 border-gray-300";
   };
 
-  /** 🔥 월 이동 함수 */
-  function moveMonth(offset: number) {
+  /** 🔥 달 변경 함수 */
+  function changeMonth(offset: number) {
     const [y, m] = month.split("-").map(Number);
-    const newDate = new Date(y, m - 1 + offset, 1);
-    const newMonth = newDate.toISOString().slice(0, 7);
 
-    // 🔥 미래 금지
-    if (newMonth > currentMonth) return;
+    let newY = y;
+    let newM = m + offset;
 
-    // 🔥 2025-11 이전 금지
+    if (newM === 0) {
+      newM = 12;
+      newY -= 1;
+    }
+    if (newM === 13) {
+      newM = 1;
+      newY += 1;
+    }
+
+    const newMonth = `${newY}-${String(newM).padStart(2, "0")}`;
+
     if (newMonth < minMonth) return;
+    if (newMonth > currentMonth) return;
 
     setMonth(newMonth);
   }
@@ -93,55 +108,41 @@ export default function RankingPage() {
     <main className="p-4 pb-20 bg-gradient-to-br from-[#FFF7D6] to-[#FFEFAA] min-h-screen">
       <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow p-6">
 
-        {/* 🔹 이전달 / 다음달 버튼 */}
-        <div className="flex justify-between items-center mb-6">
+        {/* 🔥 달 이동 버튼 */}
+        <div className="flex justify-between items-center mb-4">
           <button
-            onClick={() => moveMonth(-1)}
+            onClick={() => changeMonth(-1)}
             disabled={month === minMonth}
-            className={`px-4 py-2 rounded-lg font-semibold ${
-              month === minMonth
-                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                : "bg-gray-200 text-gray-700"
-            }`}
+            className="px-3 py-1 bg-gray-200 rounded disabled:opacity-40"
           >
             ◀ 이전달
           </button>
 
-          <h1 className="text-3xl font-bold text-center text-yellow-600">
-            {month} 월간 랭킹
-          </h1>
+          <h1 className="text-xl font-bold text-yellow-600">{month}</h1>
 
           <button
-            onClick={() => moveMonth(1)}
+            onClick={() => changeMonth(1)}
             disabled={month === currentMonth}
-            className={`px-4 py-2 rounded-lg font-semibold ${
-              month === currentMonth
-                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
-                : "bg-gray-200 text-gray-700"
-            }`}
+            className="px-3 py-1 bg-gray-200 rounded disabled:opacity-40"
           >
             다음달 ▶
           </button>
         </div>
 
-        {/* 랭킹 없음 안내 */}
+        {/* 랭킹없는 경우 */}
         {ranking.length === 0 && (
-          <p className="text-center text-gray-500 mb-4">
-            이 달의 출석 데이터가 없습니다.
-          </p>
+          <p className="text-center text-gray-500 mt-4">출석 데이터가 없습니다.</p>
         )}
 
-        {/* 랭킹 리스트 */}
-        <div className="space-y-3">
+        {/* 🔥 랭킹 목록 */}
+        <div className="space-y-3 mt-4">
           {ranking.map((item, idx) => {
             const rank = getRank(idx);
 
             return (
               <div
                 key={idx}
-                className={`flex justify-between items-center p-4 rounded-xl border ${bgColor(
-                  rank
-                )}`}
+                className={`flex justify-between items-center p-4 rounded-xl border ${bgColor(rank)}`}
               >
                 <div className="flex items-center gap-3 text-xl font-bold">
                   <span>{medal(rank)}</span>
@@ -156,6 +157,7 @@ export default function RankingPage() {
             );
           })}
         </div>
+
       </div>
     </main>
   );

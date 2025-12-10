@@ -10,9 +10,12 @@ type RankItem = {
 };
 
 export default function RankingPage() {
-  const monthKey = new Date().toISOString().slice(0, 7); // YYYY-MM
+  const today = new Date();
+  const currentMonth = today.toISOString().slice(0, 7); // YYYY-MM
+  const minMonth = "2025-11"; // 🔥 이전달은 여기보다 작아지면 안됨
+
+  const [month, setMonth] = useState(currentMonth);
   const [ranking, setRanking] = useState<RankItem[]>([]);
-  const [month, setMonth] = useState(monthKey);
 
   useEffect(() => {
     loadRanking(month);
@@ -58,20 +61,12 @@ export default function RankingPage() {
   /** 🟨 공동 등수 계산 */
   function getRank(index: number) {
     if (index === 0) return 1;
-
-    const prev = ranking[index - 1];
-    const curr = ranking[index];
-
-    // 이전사람과 count 같으면 동일 등수
-    if (prev.count === curr.count) {
+    if (ranking[index].count === ranking[index - 1].count)
       return getRank(index - 1);
-    }
-
-    // 다르면 index + 1이 등수
     return index + 1;
   }
 
-  /** 🟦 배경색 설정 */
+  /** 🟦 배경색 */
   const bgColor = (rank: number) => {
     if (rank === 1) return "bg-yellow-200 border-yellow-400";
     if (rank === 2) return "bg-gray-200 border-gray-400";
@@ -79,22 +74,64 @@ export default function RankingPage() {
     return "bg-gray-100 border-gray-300";
   };
 
+  /** 🔥 월 이동 함수 */
+  function moveMonth(offset: number) {
+    const [y, m] = month.split("-").map(Number);
+    const newDate = new Date(y, m - 1 + offset, 1);
+    const newMonth = newDate.toISOString().slice(0, 7);
+
+    // 🔥 미래 금지
+    if (newMonth > currentMonth) return;
+
+    // 🔥 2025-11 이전 금지
+    if (newMonth < minMonth) return;
+
+    setMonth(newMonth);
+  }
+
   return (
     <main className="p-4 pb-20 bg-gradient-to-br from-[#FFF7D6] to-[#FFEFAA] min-h-screen">
       <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow p-6">
 
-        <h1 className="text-3xl font-bold text-center mb-6 text-yellow-600">
-          🏆 월간 랭킹 ({month}) 🏆
-        </h1>
+        {/* 🔹 이전달 / 다음달 버튼 */}
+        <div className="flex justify-between items-center mb-6">
+          <button
+            onClick={() => moveMonth(-1)}
+            disabled={month === minMonth}
+            className={`px-4 py-2 rounded-lg font-semibold ${
+              month === minMonth
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : "bg-gray-200 text-gray-700"
+            }`}
+          >
+            ◀ 이전달
+          </button>
 
-        {/* 🔹 랭킹 없음 안내 */}
+          <h1 className="text-3xl font-bold text-center text-yellow-600">
+            {month} 월간 랭킹
+          </h1>
+
+          <button
+            onClick={() => moveMonth(1)}
+            disabled={month === currentMonth}
+            className={`px-4 py-2 rounded-lg font-semibold ${
+              month === currentMonth
+                ? "bg-gray-300 text-gray-500 cursor-not-allowed"
+                : "bg-gray-200 text-gray-700"
+            }`}
+          >
+            다음달 ▶
+          </button>
+        </div>
+
+        {/* 랭킹 없음 안내 */}
         {ranking.length === 0 && (
-          <p className="text-center text-gray-500">
-            이번 달 출석 데이터가 없습니다.
+          <p className="text-center text-gray-500 mb-4">
+            이 달의 출석 데이터가 없습니다.
           </p>
         )}
 
-        {/* 🔹 랭킹 목록 */}
+        {/* 랭킹 리스트 */}
         <div className="space-y-3">
           {ranking.map((item, idx) => {
             const rank = getRank(idx);
@@ -106,14 +143,12 @@ export default function RankingPage() {
                   rank
                 )}`}
               >
-                {/* 왼쪽: 등수 + 메달 + 이름 */}
                 <div className="flex items-center gap-3 text-xl font-bold">
                   <span>{medal(rank)}</span>
                   <span>{rank}위</span>
                   <span className="ml-3">{item.name}</span>
                 </div>
 
-                {/* 오른쪽: 출석 횟수 */}
                 <div className="text-right text-lg font-semibold text-gray-700">
                   {item.count}회 출석
                 </div>

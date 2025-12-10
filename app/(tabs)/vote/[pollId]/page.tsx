@@ -1,22 +1,22 @@
 "use client";
 
-import { useParams, useSearchParams, useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
 import { db } from "@/firebase";
 import Link from "next/link";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
+import { useEffect, useState } from "react";
 
 import {
+  addDoc,
+  arrayUnion,
+  collection,
+  deleteDoc,
   doc,
   getDoc,
-  updateDoc,
-  arrayUnion,
-  deleteDoc,
-  query,
-  where,
   getDocs,
-  addDoc,
-  collection,
+  query,
   Timestamp,
+  updateDoc,
+  where,
 } from "firebase/firestore";
 
 import ModalConfirm from "../components/ModalConfirm";
@@ -65,6 +65,7 @@ export default function VoteDetailPage() {
 
   const user = {
     name: params.get("name") ?? "",
+    pin: params.get("pin") ?? "",
     grade: params.get("grade") ?? "",
     gender: params.get("gender") ?? "",
     guest: params.get("guest") === "true",
@@ -111,6 +112,27 @@ export default function VoteDetailPage() {
     (a, b) => new Date(a.time).getTime() - new Date(b.time).getTime()
   );
 
+  /** 🔥 사용자 식별자 생성 (이름:pin 형식) */
+  function getUserIdentifier(name: string, pin: string): string {
+    return pin ? `${name}:${pin}` : name;
+  }
+
+  /** 🔥 사용자 식별자 비교 (기존 데이터 호환성 유지) */
+  function matchesUser(entry: string | any, name: string, pin: string): boolean {
+    const entryName = typeof entry === "string" ? entry.split(":")[0] : entry.name;
+    const entryPin = typeof entry === "string" && entry.includes(":") ? entry.split(":")[1] : (entry.pin || "");
+    
+    // 이름이 같고, pin이 둘 다 있으면 pin도 비교
+    if (entryName === name) {
+      if (pin && entryPin) {
+        return entryPin === pin;
+      }
+      // pin이 없는 경우 (기존 데이터)는 이름만으로 매칭
+      return true;
+    }
+    return false;
+  }
+
   /** 🔥 로그 추가 */
   async function pushLog(type: LogType, name: string) {
     await updateDoc(doc(db, "polls", pollId as string), {
@@ -125,11 +147,15 @@ export default function VoteDetailPage() {
   /** 🔥 참석하기 */
   async function handleJoin() {
     if (!user.name) return alert("로그인이 필요합니다.");
+    if (!user.pin) return alert("PIN이 필요합니다.");
 
     const ref = doc(db, "polls", pollId as string);
 
-    const alreadyP = participants.includes(user.name);
-    const alreadyW = waitlist.includes(user.name);
+    const userIdentifier = getUserIdentifier(user.name, user.pin);
+    
+    // 이름과 pin을 모두 확인하여 중복 체크
+    const alreadyP = participants.some((p) => matchesUser(p, user.name, user.pin));
+    const alreadyW = waitlist.some((w) => matchesUser(w, user.name, user.pin));
 
     if (alreadyP) return alert("이미 참석 중입니다.");
     if (alreadyW) return alert("이미 대기 중입니다.");
@@ -138,9 +164,9 @@ export default function VoteDetailPage() {
     let newW = [...waitlist];
 
     if (newP.length < poll!.capacity) {
-      newP.push(user.name);
+      newP.push(userIdentifier);
     } else {
-      newW.push(user.name);
+      newW.push(userIdentifier);
     }
 
     await updateDoc(ref, { participants: newP, waitlist: newW });
@@ -158,26 +184,38 @@ export default function VoteDetailPage() {
   async function handleCancel() {
     setShowCancelModal(false);
 
+    if (!user.pin) return alert("PIN이 필요합니다.");
+
     const ref = doc(db, "polls", pollId as string);
 
     let newP = [...participants];
     let newW = [...waitlist];
 
-    const inP = newP.includes(user.name);
-    const inW = newW.includes(user.name);
+    // 이름과 pin을 모두 확인하여 본인인지 확인
+    const inP = newP.findIndex((p) => matchesUser(p, user.name, user.pin)) !== -1;
+    const inW = newW.findIndex((w) => matchesUser(w, user.name, user.pin)) !== -1;
 
     if (!inP && !inW) return alert("참석/대기 기록 없음");
 
     if (inP) {
-      newP = newP.filter((n) => n !== user.name);
-      if (newW.length > 0) {
-        const next = newW[0];
-        newW = newW.slice(1);
-        newP.push(next);
-        await pushLog("promote", next);
+      const pIndex = newP.findIndex((p) => matchesUser(p, user.name, user.pin));
+      if (pIndex !== -1) {
+        newP = newP.filter((_, idx) => idx !== pIndex);
+        if (newW.length > 0) {
+          const next = newW[0];
+          newW = newW.slice(1);
+          newP.push(next);
+          const nextName = typeof next === "string" ? next.split(":")[0] : next.name;
+          await pushLog("promote", nextName);
+        }
       }
     }
-    if (inW) newW = newW.filter((n) => n !== user.name);
+    if (inW) {
+      const wIndex = newW.findIndex((w) => matchesUser(w, user.name, user.pin));
+      if (wIndex !== -1) {
+        newW = newW.filter((_, idx) => idx !== wIndex);
+      }
+    }
 
     await updateDoc(ref, { participants: newP, waitlist: newW });
     await pushLog("cancel", user.name);
@@ -560,7 +598,9 @@ export default function VoteDetailPage() {
               )}
 
               {participants.map((n, idx) => {
-                const name = typeof n === "string" ? n : n.name;
+                const name = typeof n === "string" 
+                  ? (n.includes(":") ? n.split(":")[0] : n)
+                  : n.name;
                 const isGuest = typeof n !== "string" && n.guest;
 
                 return (
@@ -629,7 +669,9 @@ export default function VoteDetailPage() {
           {expanded.wait && (
             <div className="bg-yellow-50 p-3 border rounded-b-xl">
               {waitlist.map((n, idx) => {
-                const name = typeof n === "string" ? n : n.name;
+                const name = typeof n === "string" 
+                  ? (n.includes(":") ? n.split(":")[0] : n)
+                  : n.name;
                 const isGuest = typeof n !== "string" && n.guest;
 
                 return (

@@ -292,7 +292,18 @@ export default function VoteDetailPage() {
     await deleteDoc(doc(db, "polls", pollId as string));
 
     alert("삭제되었습니다.");
-    router.push("/vote");
+    
+    // 쿼리 파라미터를 포함하여 투표 리스트로 이동
+    const userQuery = new URLSearchParams({
+      name: user.name,
+      pin: user.pin,
+      grade: user.grade,
+      gender: user.gender,
+      guest: String(user.guest),
+      admin: String(isAdmin),
+    }).toString();
+    
+    router.push(`/vote?${userQuery}`);
   }
 
   /** 🔧 정보 수정 저장 */

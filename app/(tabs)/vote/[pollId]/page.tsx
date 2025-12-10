@@ -1,6 +1,6 @@
 "use client";
 
-import { useParams, useSearchParams } from "next/navigation";
+import { useParams, useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { db } from "@/firebase";
 import Link from "next/link";
@@ -42,6 +42,7 @@ type Poll = {
 export default function VoteDetailPage() {
   const { pollId } = useParams();
   const params = useSearchParams();
+  const router = useRouter();
 
   const [poll, setPoll] = useState<Poll | null>(null);
   const [loading, setLoading] = useState(true);
@@ -253,7 +254,7 @@ export default function VoteDetailPage() {
     await deleteDoc(doc(db, "polls", pollId as string));
 
     alert("삭제되었습니다.");
-window.location.href = `/?name=${user.name}&grade=${user.grade}&gender=${user.gender}&guest=${user.guest}&admin=true`;
+    router.push("/vote");
   }
 
   /** 🔧 정보 수정 저장 */

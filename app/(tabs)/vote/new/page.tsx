@@ -2,10 +2,10 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState } from "react";
 import { db } from "@/firebase";
-import { collection, addDoc, getDocs } from "firebase/firestore";
+import { addDoc, collection, getDocs } from "firebase/firestore";
 import { useRouter, useSearchParams } from "next/navigation";
+import { useState } from "react";
 
 export default function CreatePollPage() {
   const router = useRouter();
@@ -44,18 +44,26 @@ export default function CreatePollPage() {
 
   // 🔥 현재 폼 상태를 템플릿으로 저장
   async function saveTemplate() {
-    if (!form.location) return alert("장소는 반드시 입력되어야 합니다.");
+    if (!form.location) {
+      alert("장소는 반드시 입력되어야 합니다.");
+      return;
+    }
 
-    await addDoc(collection(db, "templates"), {
-      title: form.title || "이름 없는 템플릿",
-      date: form.date,
-      time: form.time,
-      location: form.location,
-      fee: form.fee,
-      capacity: form.capacity,
-    });
+    try {
+      await addDoc(collection(db, "templates"), {
+        title: form.title || "이름 없는 템플릿",
+        date: form.date,
+        time: form.time,
+        location: form.location,
+        fee: form.fee,
+        capacity: form.capacity,
+      });
 
-    alert("템플릿으로 저장되었습니다!");
+      alert("템플릿으로 저장되었습니다!");
+    } catch (error) {
+      console.error("템플릿 저장 실패:", error);
+      alert("템플릿 저장에 실패했습니다.");
+    }
   }
 
   // 🔥 새로운 투표 생성
@@ -98,6 +106,7 @@ export default function CreatePollPage() {
         {/* 🔥 템플릿 불러오기 버튼 */}
         {isAdmin && (
           <button
+            type="button"
             onClick={loadTemplates}
             className="w-full bg-gray-300 text-black py-2 rounded mb-3"
           >
@@ -185,6 +194,7 @@ export default function CreatePollPage() {
           {/* 🔥 템플릿 저장 버튼 */}
           {isAdmin && (
             <button
+              type="button"
               onClick={saveTemplate}
               className="w-full bg-blue-500 text-white py-2 rounded-xl font-bold"
             >
@@ -194,6 +204,7 @@ export default function CreatePollPage() {
 
           {/* 투표 생성 버튼 */}
           <button
+            type="button"
             onClick={createPoll}
             className="w-full bg-red-500 text-white py-3 rounded-xl font-bold mt-4"
           >

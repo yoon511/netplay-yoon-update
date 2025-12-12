@@ -2,11 +2,11 @@
 
 export const dynamic = "force-dynamic";
 
-import { useEffect, useState, Suspense } from "react";
-import { useSearchParams, useRouter } from "next/navigation";
 import { db } from "@/firebase";
-import { collection, getDocs, query, orderBy } from "firebase/firestore";
+import { collection, getDocs } from "firebase/firestore";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useState } from "react";
 
 type Poll = {
   id: string;
@@ -48,12 +48,34 @@ function VoteListContent() {
   useEffect(() => {
     async function loadPolls() {
       try {
-        const q = query(collection(db, "polls"), orderBy("date", "desc"));
-        const snap = await getDocs(q);
+        const snap = await getDocs(collection(db, "polls"));
         const pollsList = snap.docs.map((doc) => ({
           id: doc.id,
           ...doc.data(),
         })) as Poll[];
+        
+        // 모임 날짜 기준으로 정렬 (가까운 날짜가 위로)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        pollsList.sort((a, b) => {
+          // 날짜 문자열을 Date 객체로 변환
+          const dateA = a.date ? new Date(a.date) : new Date(0);
+          const dateB = b.date ? new Date(b.date) : new Date(0);
+          
+          // 날짜가 유효하지 않으면 맨 아래로
+          if (isNaN(dateA.getTime()) && isNaN(dateB.getTime())) return 0;
+          if (isNaN(dateA.getTime())) return 1;
+          if (isNaN(dateB.getTime())) return -1;
+          
+          // 오늘 날짜와의 차이 계산
+          const diffA = Math.abs(dateA.getTime() - today.getTime());
+          const diffB = Math.abs(dateB.getTime() - today.getTime());
+          
+          // 가까운 날짜가 위로 오도록 정렬
+          return diffA - diffB;
+        });
+        
         setPolls(pollsList);
       } catch (error) {
         console.error("투표 목록 불러오기 실패:", error);

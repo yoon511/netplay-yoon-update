@@ -223,8 +223,19 @@ export default function VoteDetailPage() {
   }
 
   /** 🔥 관리자 강제 삭제 */
-  async function adminForceRemove(name: string, type: "participant" | "waitlist") {
+   /** 🔥 관리자 강제 삭제 */
+  async function adminForceRemove(
+    target: any,
+    type: "participant" | "waitlist"
+  ) {
     if (!isAdmin) return alert("관리자만 가능");
+
+    const name =
+      typeof target === "string"
+        ? target.includes(":")
+          ? target.split(":")[0]
+          : target
+        : target.name;
 
     const ok = confirm(`"${name}" 님을 삭제할까요?`);
     if (!ok) return;
@@ -235,21 +246,29 @@ export default function VoteDetailPage() {
     let newW = [...waitlist];
 
     if (type === "participant") {
-      newP = newP.filter((n) => n !== name);
+      // ✅ 문자열/이름:pin/객체 전부 대응해서 실제로 삭제
+      newP = newP.filter((p) => !matchesUser(p, name, ""));
+
       if (newW.length > 0) {
         const next = newW[0];
         newW = newW.slice(1);
         newP.push(next);
-        await pushLog("promote", next);
+
+        const nextName =
+          typeof next === "string" ? next.split(":")[0] : next.name;
+
+        await pushLog("promote", nextName);
       }
     } else {
-      newW = newW.filter((n) => n !== name);
+      // (현재 UI엔 대기자 제거 버튼 없지만, 함수는 안전하게 맞춰둠)
+      newW = newW.filter((w) => !matchesUser(w, name, ""));
     }
 
     await updateDoc(ref, { participants: newP, waitlist: newW });
     await pushLog("admin_remove", name);
     loadPoll();
   }
+
 
   /** 🔥 관리자 직접 인원 추가 (게스트 체크 가능) */
   async function adminAddPerson(
@@ -635,7 +654,7 @@ export default function VoteDetailPage() {
 
                     {isAdmin && (
                       <button
-                        onClick={() => adminForceRemove(name, "participant")}
+                        onClick={() => adminForceRemove(n, "participant")}
                         className="text-red-500 text-xs"
                       >
                         제거
@@ -738,3 +757,4 @@ export default function VoteDetailPage() {
     </main>
   );
 }
+

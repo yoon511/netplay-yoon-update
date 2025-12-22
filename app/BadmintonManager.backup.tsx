@@ -1,8 +1,8 @@
 "use client";
 
-import { onValue, ref, set, runTransaction } from "firebase/database";
+import { onValue, ref, set } from "firebase/database";
 import { Clock, Plus, RotateCcw, Users, X } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { db, rtdb } from "../firebase";
 import { setDoc, doc } from "firebase/firestore";
 
@@ -51,8 +51,6 @@ export default function BadmintonManager({
   const [waitingQueues, setWaitingQueues] = useState<number[][]>([]);
   const [selectedPlayers, setSelectedPlayers] = useState<number[]>([]);
   const [currentTime, setCurrentTime] = useState(Date.now());
-  const [resetVersion, setResetVersion] = useState<number | null>(null);
-  const isFirstResetLoad = useRef(true);
 
   // 삭제 모달
   const [deleteTarget, setDeleteTarget] = useState<Player | null>(null);
@@ -78,7 +76,7 @@ export default function BadmintonManager({
     const waitingRef = ref(rtdb, "waitingQueues");
 
     // 참가자
-    const unsubPlayers = onValue(playersRef, (snap) => {
+    onValue(playersRef, (snap) => {
       const data = snap.val();
       if (!data) return setPlayers([]);
 
@@ -97,7 +95,7 @@ export default function BadmintonManager({
     });
 
     // 코트
-    const unsubCourts =onValue(courtsRef, (snap) => {
+    onValue(courtsRef, (snap) => {
       const data = snap.val();
       if (!data)
         return setCourts([
@@ -118,7 +116,7 @@ export default function BadmintonManager({
     });
 
     // 대기열
-    const unsubWaiting =onValue(waitingRef, (snap) => {
+    onValue(waitingRef, (snap) => {
       const data = snap.val();
       if (!data) return setWaitingQueues([]);
       const arr = Array.isArray(data) ? data : Object.values(data);
@@ -129,66 +127,25 @@ export default function BadmintonManager({
         )
       );
     });
-   return () => {
-    unsubPlayers();
-    unsubCourts();
-    unsubWaiting();
-  };
-}, []);
- // =========================
-// 초기화 동기화 (누가 초기화하면 모두 자동 새로고침)
-// =========================
-useEffect(() => {
-  const resetRef = ref(rtdb, "meta/resetVersion");
-
-  const unsubReset = onValue(resetRef, (snap) => {
-    const v = snap.val();
-
-    // resetVersion 값이 아직 없으면(처음) 아무것도 안 함
-    if (!v) return;
-
-    // 첫 로딩 때는 "현재 값 저장만" 하고 새로고침은 하지 않음
-    if (isFirstResetLoad.current) {
-      isFirstResetLoad.current = false;
-      setResetVersion(v);
-      return;
-    }
-
-    // 누군가가 초기화를 해서 resetVersion이 바뀌면
-    if (resetVersion !== null && v !== resetVersion) {
-      alert("다른 관리자가 전체 초기화를 했습니다. 새로고침합니다.");
-      window.location.reload();
-      return;
-    }
-
-    // 혹시 resetVersion이 null인 상태였다면 저장
-    setResetVersion(v);
-  });
-
-  return () => unsubReset();
-}, [resetVersion]);
+  }, []);
 
   // =========================
   // 저장 함수
   // =========================
   const savePlayers = (list: Player[]) => {
-  set(ref(rtdb, "players"), list);
-};
+    setPlayers(list);
+    set(ref(rtdb, "players"), list);
+  };
 
-
-  
-
-const saveSingleCourt = (courtId: number, court: Court) => {
-  // courtId는 1,2,3 이고, 배열 인덱스는 0,1,2
-  set(ref(rtdb, `courts/${courtId - 1}`), court);
-};
-
-
+  const saveCourts = (list: Court[]) => {
+    setCourts(list);
+    set(ref(rtdb, "courts"), list);
+  };
 
   const saveWaiting = (list: number[][]) => {
-  set(ref(rtdb, "waitingQueues"), list);
-};
-
+    setWaitingQueues(list);
+    set(ref(rtdb, "waitingQueues"), list);
+  };
 
   // =========================
   // 참가하기 (사용자 자동 등록)
@@ -384,25 +341,18 @@ const saveSingleCourt = (courtId: number, court: Court) => {
 
     const selected = players.filter((p) => queue.includes(p.id));
 
-    saveSingleCourt(courtId, {
-  id: courtId,
-  players: selected,
-  startTime: Date.now(),
-  counted: false,
-});
+    const updatedCourts = safeCourts.map((c) =>
+      c.id === courtId
+        ? { ...c, players: selected, startTime: Date.now(), counted: false }
+        : c
+    );
 
+    saveCourts(updatedCourts);
 
     // 대기열 비우기
-    runTransaction(ref(rtdb, "waitingQueues"), (current) => {
-  const arr = Array.isArray(current) ? current : [];
-  if (!arr[qIndex] || arr[qIndex].length !== 4) {
-    // 누군가가 먼저 가져갔거나 상태가 바뀜 → 취소
-    return current;
-  }
-  const next = [...arr];
-  next[qIndex] = [];
-  return next;
-});
+    const newQueues = [...safeWaitingQueues];
+    newQueues[qIndex] = [];
+    saveWaiting(newQueues);
   };
 
   // =========================
@@ -411,13 +361,13 @@ const saveSingleCourt = (courtId: number, court: Court) => {
   const clearCourt = (courtId: number) => {
     if (!isAdmin) return;
 
-    saveSingleCourt(courtId, {
-  id: courtId,
-  players: [],
-  startTime: null,
-  counted: false,
-});
+    const updated = safeCourts.map((c) =>
+      c.id === courtId
+        ? { ...c, players: [], startTime: null, counted: false }
+        : c
+    );
 
+    saveCourts(updated);
   };
 
   // =========================
@@ -451,14 +401,12 @@ const saveSingleCourt = (courtId: number, court: Court) => {
             <button
               onClick={() => {
                 if (confirm("전체 초기화하시겠습니까?")) {
-                  set(ref(rtdb, "meta/resetVersion"), Date.now());
                   savePlayers([]);
-                  set(ref(rtdb, "courts"), [
-  { id: 1, players: [], startTime: null, counted: false },
-  { id: 2, players: [], startTime: null, counted: false },
-  { id: 3, players: [], startTime: null, counted: false },
-]);
-
+                  saveCourts([
+                    { id: 1, players: [], startTime: null, counted: false },
+                    { id: 2, players: [], startTime: null, counted: false },
+                    { id: 3, players: [], startTime: null, counted: false },
+                  ]);
                   saveWaiting([]);
                   setSelectedPlayers([]);
                 }

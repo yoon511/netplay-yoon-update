@@ -69,7 +69,7 @@ export default function RankingPage() {
     if (rank === 1) return "🥇";
     if (rank === 2) return "🥈";
     if (rank === 3) return "🥉";
-    return "🎾";
+    return "🏸";
   };
 
   /** 🟦 배경색 */

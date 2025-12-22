@@ -1,6 +1,6 @@
 "use client";
 
-import { onValue, ref, set } from "firebase/database";
+import { onValue, ref, set, runTransaction } from "firebase/database";
 import { Clock, Plus, RotateCcw, Users, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { db, rtdb } from "../firebase";
@@ -76,7 +76,7 @@ export default function BadmintonManager({
     const waitingRef = ref(rtdb, "waitingQueues");
 
     // 참가자
-    onValue(playersRef, (snap) => {
+    const unsubPlayers = onValue(playersRef, (snap) => {
       const data = snap.val();
       if (!data) return setPlayers([]);
 
@@ -95,7 +95,7 @@ export default function BadmintonManager({
     });
 
     // 코트
-    onValue(courtsRef, (snap) => {
+    const unsubCourts =onValue(courtsRef, (snap) => {
       const data = snap.val();
       if (!data)
         return setCourts([
@@ -116,7 +116,7 @@ export default function BadmintonManager({
     });
 
     // 대기열
-    onValue(waitingRef, (snap) => {
+    const unsubWaiting =onValue(waitingRef, (snap) => {
       const data = snap.val();
       if (!data) return setWaitingQueues([]);
       const arr = Array.isArray(data) ? data : Object.values(data);
@@ -127,25 +127,34 @@ export default function BadmintonManager({
         )
       );
     });
-  }, []);
+   return () => {
+    unsubPlayers();
+    unsubCourts();
+    unsubWaiting();
+  };
+}, []);
 
   // =========================
   // 저장 함수
   // =========================
   const savePlayers = (list: Player[]) => {
-    setPlayers(list);
-    set(ref(rtdb, "players"), list);
-  };
+  set(ref(rtdb, "players"), list);
+};
 
-  const saveCourts = (list: Court[]) => {
-    setCourts(list);
-    set(ref(rtdb, "courts"), list);
-  };
+
+  
+
+const saveSingleCourt = (courtId: number, court: Court) => {
+  // courtId는 1,2,3 이고, 배열 인덱스는 0,1,2
+  set(ref(rtdb, `courts/${courtId - 1}`), court);
+};
+
+
 
   const saveWaiting = (list: number[][]) => {
-    setWaitingQueues(list);
-    set(ref(rtdb, "waitingQueues"), list);
-  };
+  set(ref(rtdb, "waitingQueues"), list);
+};
+
 
   // =========================
   // 참가하기 (사용자 자동 등록)
@@ -341,18 +350,25 @@ export default function BadmintonManager({
 
     const selected = players.filter((p) => queue.includes(p.id));
 
-    const updatedCourts = safeCourts.map((c) =>
-      c.id === courtId
-        ? { ...c, players: selected, startTime: Date.now(), counted: false }
-        : c
-    );
+    saveSingleCourt(courtId, {
+  id: courtId,
+  players: selected,
+  startTime: Date.now(),
+  counted: false,
+});
 
-    saveCourts(updatedCourts);
 
     // 대기열 비우기
-    const newQueues = [...safeWaitingQueues];
-    newQueues[qIndex] = [];
-    saveWaiting(newQueues);
+    runTransaction(ref(rtdb, "waitingQueues"), (current) => {
+  const arr = Array.isArray(current) ? current : [];
+  if (!arr[qIndex] || arr[qIndex].length !== 4) {
+    // 누군가가 먼저 가져갔거나 상태가 바뀜 → 취소
+    return current;
+  }
+  const next = [...arr];
+  next[qIndex] = [];
+  return next;
+});
   };
 
   // =========================
@@ -361,13 +377,13 @@ export default function BadmintonManager({
   const clearCourt = (courtId: number) => {
     if (!isAdmin) return;
 
-    const updated = safeCourts.map((c) =>
-      c.id === courtId
-        ? { ...c, players: [], startTime: null, counted: false }
-        : c
-    );
+    saveSingleCourt(courtId, {
+  id: courtId,
+  players: [],
+  startTime: null,
+  counted: false,
+});
 
-    saveCourts(updated);
   };
 
   // =========================
@@ -402,11 +418,12 @@ export default function BadmintonManager({
               onClick={() => {
                 if (confirm("전체 초기화하시겠습니까?")) {
                   savePlayers([]);
-                  saveCourts([
-                    { id: 1, players: [], startTime: null, counted: false },
-                    { id: 2, players: [], startTime: null, counted: false },
-                    { id: 3, players: [], startTime: null, counted: false },
-                  ]);
+                  set(ref(rtdb, "courts"), [
+  { id: 1, players: [], startTime: null, counted: false },
+  { id: 2, players: [], startTime: null, counted: false },
+  { id: 3, players: [], startTime: null, counted: false },
+]);
+
                   saveWaiting([]);
                   setSelectedPlayers([]);
                 }

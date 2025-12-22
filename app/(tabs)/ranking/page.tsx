@@ -35,10 +35,18 @@ export default function RankingPage() {
       const counts: Record<string, number> = {};
 
       snap.forEach((doc) => {
-        const data = doc.data();
-        if (!counts[data.userId]) counts[data.userId] = 1;
-        else counts[data.userId] += 1;
-      });
+  const data = doc.data();
+
+  // ❌ 게스트는 랭킹에서 제외
+  if (data.guest === true) return;
+
+  if (!counts[data.userId]) {
+    counts[data.userId] = 1;
+  } else {
+    counts[data.userId] += 1;
+  }
+});
+
 
       const list = Object.entries(counts)
         .map(([name, count]) => ({ name, count }))

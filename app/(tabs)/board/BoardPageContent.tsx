@@ -8,8 +8,11 @@ import { useEffect, useMemo, useState } from "react";
 import {
   onValue,
   ref,
-  set
+  set,
+  update,
+  off
 } from "firebase/database";
+
 import {
   doc,
   getDoc,
@@ -71,56 +74,43 @@ export default function BoardPageContent() {
 
   /** Firebase RTDB 구독 */
   useEffect(() => {
-    const pRef = ref(rtdb, "players");
-    const cRef = ref(rtdb, "courts");
-    const wRef = ref(rtdb, "waitingQueues");
+  const pRef = ref(rtdb, "players");
+  const cRef = ref(rtdb, "courts");
+  const wRef = ref(rtdb, "waitingQueues");
 
-    onValue(pRef, (snap) => {
-      const data = snap.val();
-      if (!data) return setPlayers([]);
-      const arr = Array.isArray(data) ? data : Object.values(data);
-      setPlayers(
-        arr.filter(Boolean).map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          grade: p.grade,
-          gender: p.gender,
-          guest: p.guest ?? false,
-          pin: p.pin ?? "",
-          playCount: p.playCount ?? 0,
-        }))
-      );
-    });
+  onValue(pRef, (snap) => {
+    const data = snap.val();
+    if (!data) return setPlayers([]);
+    const arr = Array.isArray(data) ? data : Object.values(data);
+    setPlayers(arr.filter(Boolean));
+  });
 
-    onValue(cRef, (snap) => {
-      const data = snap.val();
-      if (!data)
-        return setCourts([
-          { id: 1, players: [], startTime: null, counted: false },
-          { id: 2, players: [], startTime: null, counted: false },
-          { id: 3, players: [], startTime: null, counted: false },
-        ]);
+  onValue(cRef, (snap) => {
+    const data = snap.val();
+    if (!data) return;
+    const arr = Array.isArray(data) ? data : Object.values(data);
+    setCourts(arr.map((c: any, i) => ({
+      id: c.id ?? i + 1,
+      players: Array.isArray(c.players) ? c.players.filter(Boolean) : [],
+      startTime: typeof c.startTime === "number" ? c.startTime : null,
+      counted: !!c.counted,
+    })));
+  });
 
-      const arr = Array.isArray(data) ? data : Object.values(data);
-      setCourts(
-        arr.map((c: any, i: number) => ({
-          id: c.id ?? i + 1,
-          players: Array.isArray(c.players) ? c.players.filter(Boolean) : [],
-          startTime: typeof c.startTime === "number" ? c.startTime : null,
-          counted: !!c.counted,
-        }))
-      );
-    });
+  onValue(wRef, (snap) => {
+    const data = snap.val();
+    if (!data) return setWaitingQueues([]);
+    const arr = Array.isArray(data) ? data : Object.values(data);
+    setWaitingQueues(arr.map((q: any) => Array.isArray(q) ? q : []));
+  });
 
-    onValue(wRef, (snap) => {
-      const data = snap.val();
-      if (!data) return setWaitingQueues([]);
-      const arr = Array.isArray(data) ? data : Object.values(data);
-      setWaitingQueues(
-        arr.map((q: any) => (Array.isArray(q) ? q.filter((x) => typeof x === "number") : []))
-      );
-    });
-  }, []);
+  return () => {
+    off(pRef);
+    off(cRef);
+    off(wRef);
+  };
+}, []);
+
 
   /** 저장 함수 */
   const savePlayers = (list: Player[]) => {
@@ -128,10 +118,10 @@ export default function BoardPageContent() {
     set(ref(rtdb, "players"), list);
   };
 
-  const saveCourts = (list: Court[]) => {
-    setCourts(list);
-    set(ref(rtdb, "courts"), list);
-  };
+  const saveCourt = (courtIndex: number, data: Partial<Court>) => {
+  update(ref(rtdb, `courts/${courtIndex}`), data);
+};
+
 
   const saveWaiting = (list: number[][]) => {
     setWaitingQueues(list);
@@ -274,35 +264,38 @@ export default function BoardPageContent() {
 
   /** 코트 배정 */
   const assignToCourt = (courtId: number, idx: number) => {
-    if (!isAdmin) return;
+  if (!isAdmin) return;
 
-    const q = safeWaitingQueues[idx];
-    if (q.length !== 4) return alert("4명일 때만 가능");
+  const q = safeWaitingQueues[idx];
+  if (q.length !== 4) return alert("4명일 때만 가능");
 
-    const assigned = players.filter((p) => q.includes(p.id));
-    const newCourts = safeCourts.map((c) =>
-      c.id === courtId
-        ? { ...c, players: assigned, startTime: Date.now(), counted: false }
-        : c
-    );
+  const assigned = players.filter((p) => q.includes(p.id));
+  const courtIndex = safeCourts.findIndex((c) => c.id === courtId);
 
-    saveCourts(newCourts);
+  saveCourt(courtIndex, {
+    players: assigned,
+    startTime: Date.now(),
+    counted: false,
+  });
 
-    const newQ = [...safeWaitingQueues];
-    newQ[idx] = [];
-    saveWaiting(newQ);
-  };
+  const newQ = [...safeWaitingQueues];
+  newQ[idx] = [];
+  saveWaiting(newQ);
+};
 
   /** 코트 비우기 */
   const clearCourt = (courtId: number) => {
     if (!isAdmin) return;
-    saveCourts(
-      safeCourts.map((c) =>
-        c.id === courtId
-          ? { ...c, players: [], startTime: null, counted: false }
-          : c
-      )
-    );
+    const clearCourt = (courtId: number) => {
+  if (!isAdmin) return;
+  const courtIndex = safeCourts.findIndex((c) => c.id === courtId);
+
+  saveCourt(courtIndex, {
+    players: [],
+    startTime: null,
+    counted: false,
+  });
+};
   };
 
   
@@ -337,13 +330,11 @@ export default function BoardPageContent() {
 
     savePlayers(newPlayers);
 
-    const newCourts = safeCourts.map((c) =>
-      toCount.find((x) => x.id === c.id)
-        ? { ...c, counted: true }
-        : c
-    );
+   toCount.forEach((c) => {
+  const idx = safeCourts.findIndex((x) => x.id === c.id);
+  saveCourt(idx, { counted: true });
+});
 
-    saveCourts(newCourts);
   }, [currentTime, safeCourts, players]);
 
   // 3회 달성 시 하루 출석 저장 (중복 방지)

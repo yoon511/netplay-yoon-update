@@ -367,12 +367,24 @@ export default function VoteDetailPage() {
       );
       if (!qSnap.empty) continue;
 
-      await addDoc(collection(db, "participationLogs"), {
-        userId: name,
-        date: pollDate,
-        pollId,
-        createdAt: Timestamp.now(),
-      });
+      // 🔍 참석자 목록에서 해당 사람 찾기
+const participant = participants.find((p) => {
+  if (typeof p === "string") return p === name || p.startsWith(name + ":");
+  return p.name === name;
+});
+
+// ❌ 게스트면 아예 반영 안 함
+if (typeof participant !== "string" && participant?.guest === true) {
+  continue;
+}
+
+await addDoc(collection(db, "participationLogs"), {
+  userId: name,
+  date: pollDate,
+  pollId,
+  guest: typeof participant !== "string" ? !!participant.guest : false,
+  createdAt: Timestamp.now(),
+});
     }
 
     alert("랭킹 반영 완료!");

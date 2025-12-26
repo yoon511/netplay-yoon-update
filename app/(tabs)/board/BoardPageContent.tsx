@@ -490,13 +490,17 @@ async function saveAttendanceOnce(player: any) {
             return (
               <div
                 key={p.id}
-                className={`p-4 rounded-xl border relative cursor-pointer ${
-                  p.gender === "남"
-                    ? "bg-blue-100 border-blue-300"
-                    : "bg-pink-100 border-pink-300"
-                } ${isSel ? "ring-4 ring-yellow-200" : ""} ${
-                  isWaiting ? "opacity-40" : ""
-                }`}
+                className={`p-4 rounded-xl border relative cursor-pointer
+  ${p.gender === "남"
+    ? "bg-blue-100 border-blue-300"
+    : "bg-pink-100 border-pink-300"}
+  ${isSel ? "ring-4 ring-yellow-200" : ""}
+  ${isWaiting ? "opacity-40" : ""}
+  ${playersInCourts.has(p.id)
+    ? "border-red-300 ring-2 ring-red-200"
+    : ""}
+`}
+
                 onClick={() => !isWaiting && isAdmin && toggleSelect(p.id)}
               >
                 {(isAdmin || (p.name === user.name && p.pin === user.pin)) && (
@@ -568,9 +572,13 @@ async function saveAttendanceOnce(player: any) {
                 return (
                   <div
                     key={id}
-                    className={`p-2 rounded text-sm font-bold ${
-                      p.gender === "남" ? "bg-blue-200" : "bg-pink-200"
-                    } relative`}
+                    className={`p-2 rounded text-sm font-bold border
+  ${p.gender === "남" ? "bg-blue-200" : "bg-pink-200"}
+  ${playersInCourts.has(p.id)
+    ? "border-red-300 ring-2 ring-red-200"
+    : "border-transparent"}
+  relative`}
+
                   >
                     {isAdmin && (
                       <button
@@ -595,7 +603,14 @@ async function saveAttendanceOnce(player: any) {
         <h2 className="font-bold text-lg mb-3">코트 현황</h2>
 
         {safeCourts.map((court) => (
-          <div key={court.id} className="bg-blue-100 p-4 rounded-xl border mb-3">
+          <div
+  key={court.id}
+  className={`p-4 rounded-xl border mb-3 transition
+    ${court.players.length > 0
+      ? "border-red-400 ring-4 ring-red-200 bg-red-50"
+      : "border-blue-300 bg-blue-100"}
+  `}
+>
             <div className="flex justify-between mb-2">
               <span className="font-bold">코트 {court.id}</span>
               {court.startTime && (
@@ -632,9 +647,13 @@ async function saveAttendanceOnce(player: any) {
                   {court.players.map((p) => (
                     <div
                       key={p.id}
-                      className={`p-2 rounded text-sm font-bold ${
-                        p.gender === "남" ? "bg-blue-200" : "bg-pink-200"
-                      }`}
+                      className={`p-2 rounded text-sm font-bold border
+  ${p.gender === "남" ? "bg-blue-200" : "bg-pink-200"}
+  ${playersInCourts.has(p.id)
+    ? "border-red-400 ring-2 ring-red-300"
+    : "border-transparent"}
+`}
+
                     >
                       {p.name} ({p.grade})
                     </div>

@@ -8,10 +8,10 @@ import { useEffect, useMemo, useState } from "react";
 import {
   onValue,
   ref,
-  set,
-  update,
-  off
+  off,
+  runTransaction
 } from "firebase/database";
+
 
 import {
   doc,
@@ -35,7 +35,9 @@ type Court = {
   players: Player[];
   startTime: number | null;
   counted?: boolean;
+  sessionId?: number | null; // ✅ 추가: 게임 세션 식별자
 };
+
 
 export default function BoardPageContent() {
   const params = useSearchParams();
@@ -90,11 +92,13 @@ export default function BoardPageContent() {
     if (!data) return;
     const arr = Array.isArray(data) ? data : Object.values(data);
     setCourts(arr.map((c: any, i) => ({
-      id: c.id ?? i + 1,
-      players: Array.isArray(c.players) ? c.players.filter(Boolean) : [],
-      startTime: typeof c.startTime === "number" ? c.startTime : null,
-      counted: !!c.counted,
-    })));
+  id: c.id ?? i + 1,
+  players: Array.isArray(c.players) ? c.players.filter(Boolean) : [],
+  startTime: typeof c.startTime === "number" ? c.startTime : null,
+  counted: !!c.counted,
+  sessionId: typeof c.sessionId === "number" ? c.sessionId : null,
+})));
+
   });
 
   onValue(wRef, (snap) => {
@@ -113,20 +117,44 @@ export default function BoardPageContent() {
 
 
   /** 저장 함수 */
-  const savePlayers = (list: Player[]) => {
-    setPlayers(list);
-    set(ref(rtdb, "players"), list);
-  };
+ /** =========================
+ *  ✅ RTDB 트랜잭션 기반 저장 (충돌 방지)
+ *  - 배열 전체 set 금지
+ *  - 관리자 2명/참가자 다수 동시操作 안전
+ *  ========================= */
 
-  const saveCourt = (courtIndex: number, data: Partial<Court>) => {
-  update(ref(rtdb, `courts/${courtIndex}`), data);
+const txPlayers = async (mutate: (arr: Player[]) => Player[]) => {
+  await runTransaction(ref(rtdb, "players"), (cur) => {
+    const arr: Player[] = Array.isArray(cur) ? cur.filter(Boolean) : [];
+    return mutate(arr);
+  });
 };
 
+const txWaiting = async (mutate: (arr: number[][]) => number[][]) => {
+  await runTransaction(ref(rtdb, "waitingQueues"), (cur) => {
+    const arr: number[][] = Array.isArray(cur)
+      ? cur.map((q) => (Array.isArray(q) ? q.filter((x) => typeof x === "number") : [])).filter(Boolean)
+      : [];
+    return mutate(arr);
+  });
+};
 
-  const saveWaiting = (list: number[][]) => {
-    setWaitingQueues(list);
-    set(ref(rtdb, "waitingQueues"), list);
-  };
+const txCourt = async (courtIndex: number, mutate: (c: Court) => Court) => {
+  await runTransaction(ref(rtdb, `courts/${courtIndex}`), (cur) => {
+    const base: Court = cur && typeof cur === "object"
+      ? {
+          id: cur.id ?? courtIndex + 1,
+          players: Array.isArray(cur.players) ? cur.players.filter(Boolean) : [],
+          startTime: typeof cur.startTime === "number" ? cur.startTime : null,
+          counted: !!cur.counted,
+          sessionId: typeof cur.sessionId === "number" ? cur.sessionId : null,
+        }
+      : { id: courtIndex + 1, players: [], startTime: null, counted: false, sessionId: null };
+
+    return mutate(base);
+  });
+};
+
 
   /** 참가 버튼 */
   const addPlayer = () => {
@@ -147,7 +175,11 @@ export default function BoardPageContent() {
       pin: user.pin,
       playCount: 0,
     };
-    savePlayers([...players, newP]);
+    txPlayers((arr) => {
+  const exist = arr.find((p) => p.name === user.name && p.pin === user.pin);
+  if (exist) return arr;
+  return [...arr, newP];
+});
   };
 
   /** 관리자 임의 추가 */
@@ -169,8 +201,14 @@ export default function BoardPageContent() {
       playCount: 0,
     };
 
-    savePlayers([...players, newPlayer]);
-    alert("추가되었습니다!");
+    txPlayers((arr) => {
+  if (arr.some((p) => p.name === name && p.guest === guest)) return arr;
+  return [...arr, newPlayer];
+});
+
+alert("추가되었습니다!");
+
+
   };
 
   /** 안전 구조 */
@@ -206,14 +244,21 @@ export default function BoardPageContent() {
     if (!deleteTarget) return;
 
     const p = deleteTarget;
-    const newPlayers = players.filter((x) => x.id !== p.id);
-    const newQueues = safeWaitingQueues.map((q) => q.filter((x) => x !== p.id));
     const newSelected = selectedPlayers.filter((x) => x !== p.id);
 
-    savePlayers(newPlayers);
-    saveWaiting(newQueues);
-    setSelectedPlayers(newSelected);
+    txPlayers((arr) => arr.filter((x) => x.id !== p.id));
+txWaiting((arr) => arr.map((q) => q.filter((x) => x !== p.id)));
+// 🔥 코트에 있던 경우도 제거
+safeCourts.forEach((court, idx) => {
+  if (court.players.some((x) => x.id === p.id)) {
+    txCourt(idx, (c) => ({
+      ...c,
+      players: c.players.filter((x) => x.id !== p.id),
+    }));
+  }
+});
 
+    setSelectedPlayers(newSelected);
     setDeleteTarget(null);
     setShowDeleteModal(false);
   };
@@ -235,67 +280,131 @@ export default function BoardPageContent() {
     if (selectedPlayers.length === 0) return alert("선택 없음");
     if (selectedPlayers.length > 4) return alert("4명 제한");
 
-    saveWaiting([...safeWaitingQueues, selectedPlayers]);
-    setSelectedPlayers([]);
+    txWaiting((arr) => {
+  const used = new Set(arr.flat());
+  const filtered = selectedPlayers.filter((id) => !used.has(id));
+  if (filtered.length === 0) return arr;
+  return [...arr, filtered.slice(0, 4)];
+});
+
+setSelectedPlayers([]);
+
+
   };
 
   /** 대기열 추가 */
   const addToQueue = (idx: number) => {
-    if (!isAdmin) return;
-    const base = safeWaitingQueues[idx];
+  if (!isAdmin) return;
 
-    const incoming = selectedPlayers.filter((id) => !base.includes(id));
-    if (base.length + incoming.length > 4)
-      return alert("대기열은 4명까지");
+  txWaiting((arr) => {
+    const base = Array.isArray(arr[idx]) ? arr[idx] : [];
 
-    const newQ = [...safeWaitingQueues];
-    newQ[idx] = [...base, ...incoming];
-    saveWaiting(newQ);
-    setSelectedPlayers([]);
-  };
+    // ✅ 이미 다른 대기열에 들어간 사람은 추가 금지
+    const used = new Set(arr.flat());
+    const incoming = selectedPlayers.filter(
+      (id) => !base.includes(id) && !used.has(id)
+    );
+
+    if (base.length + incoming.length > 4) return arr;
+
+    const next = [...arr];
+    next[idx] = [...base, ...incoming].slice(0, 4);
+    return next;
+  });
+
+  setSelectedPlayers([]);
+};
+
 
   /** 대기열 삭제 */
   const removeFromQueue = (id: number, idx: number) => {
-    if (!isAdmin) return;
-    const newQ = [...safeWaitingQueues];
-    newQ[idx] = newQ[idx].filter((x) => x !== id);
-    saveWaiting(newQ);
-  };
-
-  /** 코트 배정 */
-  const assignToCourt = (courtId: number, idx: number) => {
   if (!isAdmin) return;
 
+  txWaiting((arr) => {
+    const next = [...arr];
+    if (!Array.isArray(next[idx])) return arr;
+    next[idx] = next[idx].filter((x) => x !== id);
+    return next;
+  });
+};
+
+
+  /** 코트 배정 */
+  const assignToCourt = async (courtId: number, idx: number) => {
+  if (!isAdmin) return;
+
+  // 화면에 보이는 대기열이 4명인지 확인(UX용)
   const q = safeWaitingQueues[idx];
   if (q.length !== 4) return alert("4명일 때만 가능");
 
   const assigned = players.filter((p) => q.includes(p.id));
   const courtIndex = safeCourts.findIndex((c) => c.id === courtId);
+  if (courtIndex === -1) return;
 
-  saveCourt(courtIndex, {
-    players: assigned,
-    startTime: Date.now(),
-    counted: false,
+  const newSessionId = Date.now();
+
+  // ✅ 1) 코트 트랜잭션: 이미 누가 배정했으면 실패
+  let assignedOk = false;
+  await runTransaction(ref(rtdb, `courts/${courtIndex}`), (cur) => {
+    const current: Court = cur && typeof cur === "object"
+      ? {
+          id: cur.id ?? courtIndex + 1,
+          players: Array.isArray(cur.players) ? cur.players.filter(Boolean) : [],
+          startTime: typeof cur.startTime === "number" ? cur.startTime : null,
+          counted: !!cur.counted,
+          sessionId: typeof cur.sessionId === "number" ? cur.sessionId : null,
+        }
+      : { id: courtIndex + 1, players: [], startTime: null, counted: false, sessionId: null };
+
+    // 이미 게임중이면 건드리지 않음 (관리자 2명 충돌 방지)
+    if (current.players.length > 0) return current;
+
+    assignedOk = true;
+    return {
+      ...current,
+      players: assigned,
+      startTime: Date.now(),
+      counted: false,
+      sessionId: newSessionId,
+    };
   });
 
-  const newQ = [...safeWaitingQueues];
-  newQ[idx] = [];
-  saveWaiting(newQ);
+  if (!assignedOk) {
+    alert("다른 관리자가 먼저 코트에 배정했어요. 화면을 확인해주세요.");
+    return;
+  }
+
+  // ✅ 2) 대기열 비우기 (DB 최신 상태 기준)
+  await txWaiting((arr) => {
+  const next = [...arr];
+
+  // ✅ 최신 DB 기준으로 idx 대기열을 다시 확인
+  const live = Array.isArray(next[idx]) ? next[idx] : [];
+  // 혹시 누가 먼저 바꿨으면 건드리지 않음
+  if (live.length !== 4) return arr;
+
+  next[idx] = [];
+  return next;
+});
+
 };
 
   /** 코트 비우기 */
-  const clearCourt = (courtId: number) => {
+  const clearCourt = async (courtId: number) => {
   if (!isAdmin) return;
 
   const courtIndex = safeCourts.findIndex((c) => c.id === courtId);
   if (courtIndex === -1) return;
 
-  saveCourt(courtIndex, {
+  await txCourt(courtIndex, (c) => ({
+    ...c,
     players: [],
     startTime: null,
     counted: false,
-  });
+    sessionId: null,
+  }));
 };
+
 
   /** 4분 카운트 */
   useEffect(() => {
@@ -311,26 +420,54 @@ export default function BoardPageContent() {
 
     if (toCount.length === 0) return;
 
-    const countingIds = new Set<number>();
-    toCount.forEach((c) => c.players.forEach((p) => countingIds.add(p.id)));
+    toCount.forEach(async (court) => {
+  const courtIndex = safeCourts.findIndex((x) => x.id === court.id);
+  if (courtIndex === -1) return;
 
-    const newPlayers = players.map((p) =>
-      countingIds.has(p.id)
-        ? { ...p, playCount: p.playCount + 1 }
-        : p
+  // ✅ counted를 먼저 트랜잭션으로 잠금: 한 명만 성공
+  let iAmFirst = false;
+  await runTransaction(ref(rtdb, `courts/${courtIndex}`), (cur) => {
+    if (!cur) return cur;
+
+    const c: Court = {
+      id: cur.id ?? courtIndex + 1,
+      players: Array.isArray(cur.players) ? cur.players.filter(Boolean) : [],
+      startTime: typeof cur.startTime === "number" ? cur.startTime : null,
+      counted: !!cur.counted,
+      sessionId: typeof cur.sessionId === "number" ? cur.sessionId : null,
+    };
+
+    const FOUR = 4 * 60 * 1000;
+    const ok =
+      c.startTime &&
+      !c.counted &&
+      Date.now() - c.startTime >= FOUR &&
+      c.players.length > 0;
+
+    if (!ok) return c;
+
+    iAmFirst = true;
+    return { ...c, counted: true };
+  });
+
+  if (!iAmFirst) return; // 다른 사람이 먼저 처리함
+
+  const ids = new Set<number>((court.players ?? []).map((p) => p.id));
+
+  // ✅ playCount 증가도 트랜잭션으로
+  await txPlayers((arr) => {
+    const next = arr.map((p) =>
+      ids.has(p.id) ? { ...p, playCount: (p.playCount ?? 0) + 1 } : p
     );
 
-    // 출석 체크
-    newPlayers.forEach((p) => {
-      if (p.playCount === 3) saveAttendanceOnce(p); // 3회 달성 순간
+    next.forEach((p) => {
+      if (ids.has(p.id) && p.playCount === 3) saveAttendanceOnce(p);
     });
 
-    savePlayers(newPlayers);
-
-   toCount.forEach((c) => {
-  const idx = safeCourts.findIndex((x) => x.id === c.id);
-  saveCourt(idx, { counted: true });
+    return next;
+  });
 });
+
 
   }, [currentTime, safeCourts, players]);
 
@@ -382,33 +519,32 @@ async function saveAttendanceOnce(player: any) {
           </div>
 
           {isAdmin && (
-            <button
-              onClick={() => {
-                if (confirm("전체 초기화?")) {
-                  savePlayers([]);
-                 if (confirm("전체 초기화?")) {
-  savePlayers([]);
-  saveWaiting([]);
-  setSelectedPlayers([]);
+  <button
+    onClick={async () => {
+      if (!confirm("전체 초기화?")) return;
 
-  // 코트 3개 개별 초기화
-  [0, 1, 2].forEach((idx) => {
-    saveCourt(idx, {
-      players: [],
-      startTime: null,
-      counted: false,
-    });
-  });
-}
-                  saveWaiting([]);
-                  setSelectedPlayers([]);
-                }
-              }}
-              className="bg-red-300 text-white px-4 py-2 rounded-xl flex items-center gap-2"
-            >
-              <RotateCcw className="w-4 h-4" /> 초기화
-            </button>
-          )}
+      await runTransaction(ref(rtdb, "players"), () => []);
+      await runTransaction(ref(rtdb, "waitingQueues"), () => []);
+      setSelectedPlayers([]);
+
+      await Promise.all(
+        [0, 1, 2].map((idx) =>
+          txCourt(idx, (c) => ({
+            ...c,
+            players: [],
+            startTime: null,
+            counted: false,
+            sessionId: null,
+          }))
+        )
+      );
+    }}
+    className="bg-red-300 text-white px-4 py-2 rounded-xl flex items-center gap-2"
+  >
+    <RotateCcw className="w-4 h-4" /> 초기화
+  </button>
+)}
+
         </div>
 
         {/* 참가하기 */}

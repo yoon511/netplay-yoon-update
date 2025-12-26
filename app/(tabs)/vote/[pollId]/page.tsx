@@ -324,23 +324,56 @@ export default function VoteDetailPage() {
     
     router.push(`/vote?${userQuery}`);
   }
+/** 🔥 정원 변경 시 참석/대기 자동 재정렬 */
+function rebalanceByCapacity(
+  participants: any[],
+  waitlist: any[],
+  capacity: number
+) {
+  // 1) 참석 + 대기 전부 합치기 (순서 유지)
+  const all = [...participants, ...waitlist];
+
+  // 2) 앞에서 capacity명은 참석, 나머지는 대기
+  const newParticipants = all.slice(0, capacity);
+  const newWaitlist = all.slice(capacity);
+
+  return {
+    newParticipants,
+    newWaitlist,
+  };
+}
 
   /** 🔧 정보 수정 저장 */
-  async function saveEdit() {
-    const ref = doc(db, "polls", pollId as string);
+  /** 🔧 정보 수정 저장 */
+async function saveEdit() {
+  const ref = doc(db, "polls", pollId as string);
 
-    await updateDoc(ref, {
-      date: editForm.date,
-      time: editForm.time,
-      location: editForm.location,
-      fee: editForm.fee,
-      capacity: Number(editForm.capacity),
-    });
+  const newCapacity = Number(editForm.capacity);
 
-    alert("수정 완료!");
-    setEditMode(false);
-    loadPoll();
-  }
+  // 🔥 정원 기준으로 참석/대기 재정렬
+  const { newParticipants, newWaitlist } = rebalanceByCapacity(
+    participants,
+    waitlist,
+    newCapacity
+  );
+
+  await updateDoc(ref, {
+    date: editForm.date,
+    time: editForm.time,
+    location: editForm.location,
+    fee: editForm.fee,
+    capacity: newCapacity,
+
+    // ✅ 여기 추가됨
+    participants: newParticipants,
+    waitlist: newWaitlist,
+  });
+
+  alert("정원 변경에 따라 참석/대기가 자동 조정되었습니다.");
+  setEditMode(false);
+  loadPoll();
+}
+
 
   /** 🔥 출석 반영 → 랭킹 반영 */
   async function applyAttendance() {

@@ -285,10 +285,10 @@ export default function BoardPageContent() {
 
   /** 코트 비우기 */
   const clearCourt = (courtId: number) => {
-    if (!isAdmin) return;
-    const clearCourt = (courtId: number) => {
   if (!isAdmin) return;
+
   const courtIndex = safeCourts.findIndex((c) => c.id === courtId);
+  if (courtIndex === -1) return;
 
   saveCourt(courtIndex, {
     players: [],
@@ -296,9 +296,6 @@ export default function BoardPageContent() {
     counted: false,
   });
 };
-  };
-
-  
 
   /** 4분 카운트 */
   useEffect(() => {
@@ -389,11 +386,20 @@ async function saveAttendanceOnce(player: any) {
               onClick={() => {
                 if (confirm("전체 초기화?")) {
                   savePlayers([]);
-                  saveCourts([
-                    { id: 1, players: [], startTime: null, counted: false },
-                    { id: 2, players: [], startTime: null, counted: false },
-                    { id: 3, players: [], startTime: null, counted: false },
-                  ]);
+                 if (confirm("전체 초기화?")) {
+  savePlayers([]);
+  saveWaiting([]);
+  setSelectedPlayers([]);
+
+  // 코트 3개 개별 초기화
+  [0, 1, 2].forEach((idx) => {
+    saveCourt(idx, {
+      players: [],
+      startTime: null,
+      counted: false,
+    });
+  });
+}
                   saveWaiting([]);
                   setSelectedPlayers([]);
                 }

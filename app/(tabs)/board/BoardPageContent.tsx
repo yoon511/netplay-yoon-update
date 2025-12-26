@@ -708,7 +708,7 @@ async function saveAttendanceOnce(player: any) {
                     className={`p-2 rounded text-sm font-bold border
   ${p.gender === "남" ? "bg-blue-200" : "bg-pink-200"}
   ${playersInCourts.has(p.id)
-    ? "border-red-300 ring-2 ring-red-200"
+    ? "border-red-600 ring-2 ring-red-300"
     : "border-transparent"}
   relative`}
 

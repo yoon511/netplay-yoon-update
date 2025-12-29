@@ -770,9 +770,7 @@ const forceClearCourt = async (courtId: number) => {
     강제 코트 비우기
   </button>
 </div>
-
-                    코트 비우기
-                  </button>
+                  
                 )}
               </div>
             )}

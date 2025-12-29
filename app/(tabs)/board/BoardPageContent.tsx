@@ -396,21 +396,66 @@ const assignToCourt = async (courtId: number, idx: number) => {
 
 
   /** 코트 비우기 */
-  const clearCourt = async (courtId: number) => {
+ const endGameAndCount = async (courtId: number) => {
   if (!isAdmin) return;
 
   const courtIndex = safeCourts.findIndex((c) => c.id === courtId);
   if (courtIndex === -1) return;
 
-  await txCourt(courtIndex, (c) => ({
-  ...c,
-  players: [],
-  startTime: null,
-  sessionId: null,
-  countedSessionId: null,
-}));
+  const court = safeCourts[courtIndex];
+  if (!court.players || court.players.length === 0) return;
 
+  if (!confirm("정말 게임이 정상 종료되었나요?\n참여 횟수가 추가됩니다.")) {
+    return;
+  }
+
+  // 🔒 중복 방지
+  if (court.countedSessionId === court.sessionId) {
+    alert("이미 카운트된 게임입니다.");
+    return;
+  }
+
+  const playerIds = court.players.map((p) => p.id);
+  const idSet = new Set(playerIds);
+
+  // ✅ 1) 참여 횟수 +1
+  await txPlayers((arr) =>
+    arr.map((p) =>
+      idSet.has(p.id)
+        ? { ...p, playCount: (p.playCount ?? 0) + 1 }
+        : p
+    )
+  );
+
+  // ✅ 2) 코트 정리 + countedSessionId 기록
+  await txCourt(courtIndex, (c) => ({
+    ...c,
+    players: [],
+    startTime: null,
+    countedSessionId: c.sessionId,
+    sessionId: null,
+  }));
 };
+
+const forceClearCourt = async (courtId: number) => {
+  if (!isAdmin) return;
+
+  const courtIndex = safeCourts.findIndex((c) => c.id === courtId);
+  if (courtIndex === -1) return;
+
+  if (!confirm("강제로 코트를 비웁니다.\n게임 횟수는 추가되지 않습니다.")) {
+    return;
+  }
+
+  await txCourt(courtIndex, (c) => ({
+    ...c,
+    players: [],
+    startTime: null,
+    sessionId: null,
+    countedSessionId: null,
+  }));
+};
+
 
   /** 경과 시간 표시 */
   const elapsed = (startTime: number | null) => {
@@ -710,10 +755,22 @@ const assignToCourt = async (courtId: number, idx: number) => {
                 </div>
 
                 {isAdmin && (
-                  <button
-                    onClick={() => clearCourt(court.id)}
-                    className="w-full py-2 bg-red-400 text-white rounded-xl"
-                  >
+                  <div className="flex gap-2">
+  <button
+    onClick={() => endGameAndCount(court.id)}
+    className="flex-1 py-2 bg-green-500 text-white rounded-xl font-bold"
+  >
+    게임 종료 (횟수 추가)
+  </button>
+
+  <button
+    onClick={() => forceClearCourt(court.id)}
+    className="flex-1 py-2 bg-red-400 text-white rounded-xl font-bold"
+  >
+    강제 코트 비우기
+  </button>
+</div>
+
                     코트 비우기
                   </button>
                 )}

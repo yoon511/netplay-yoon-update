@@ -1,6 +1,6 @@
 "use client";
 
-import { db, rtdb } from "@/firebase";
+import { rtdb } from "@/firebase";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 
@@ -13,11 +13,6 @@ import {
 } from "firebase/database";
 
 
-import {
-  doc,
-  getDoc,
-  setDoc
-} from "firebase/firestore";
 import { ChevronDown, ChevronUp, Clock, Plus, RotateCcw, Users, X } from "lucide-react";
 
 type Player = {
@@ -34,9 +29,11 @@ type Court = {
   id: number;
   players: Player[];
   startTime: number | null;
-  counted?: boolean;
-  sessionId?: number | null; // ✅ 추가: 게임 세션 식별자
+
+  sessionId: number | null;        // 게임 고유 ID
+  countedSessionId: number | null; // 참여횟수 처리 완료된 게임 ID
 };
+
 
 
 export default function BoardPageContent() {
@@ -54,10 +51,11 @@ export default function BoardPageContent() {
 
   const [players, setPlayers] = useState<Player[]>([]);
   const [courts, setCourts] = useState<Court[]>([
-    { id: 1, players: [], startTime: null, counted: false },
-    { id: 2, players: [], startTime: null, counted: false },
-    { id: 3, players: [], startTime: null, counted: false },
-  ]);
+  { id: 1, players: [], startTime: null, sessionId: null, countedSessionId: null },
+  { id: 2, players: [], startTime: null, sessionId: null, countedSessionId: null },
+  { id: 3, players: [], startTime: null, sessionId: null, countedSessionId: null },
+]);
+
   const [waitingQueues, setWaitingQueues] = useState<number[][]>([]);
   const [selectedPlayers, setSelectedPlayers] = useState<number[]>([]);
 
@@ -88,18 +86,30 @@ export default function BoardPageContent() {
   });
 
   onValue(cRef, (snap) => {
-    const data = snap.val();
-    if (!data) return;
-    const arr = Array.isArray(data) ? data : Object.values(data);
-    setCourts(arr.map((c: any, i) => ({
-  id: c.id ?? i + 1,
-  players: Array.isArray(c.players) ? c.players.filter(Boolean) : [],
-  startTime: typeof c.startTime === "number" ? c.startTime : null,
-  counted: !!c.counted,
-  sessionId: typeof c.sessionId === "number" ? c.sessionId : null,
-})));
+  const data = snap.val();
+  if (!data) return;
 
-  });
+  const arr = Array.isArray(data) ? data : Object.values(data);
+
+  setCourts(
+    arr.map((c: any, i) => ({
+      id: c.id ?? i + 1,
+      players: Array.isArray(c.players) ? c.players.filter(Boolean) : [],
+      startTime: typeof c.startTime === "number" ? c.startTime : null,
+
+      // ✅ 게임 단위 식별
+      sessionId:
+        typeof c.sessionId === "number" ? c.sessionId : null,
+
+      // ✅ 이 게임이 이미 카운트 되었는지 여부
+      countedSessionId:
+        typeof c.countedSessionId === "number"
+          ? c.countedSessionId
+          : null,
+    }))
+  );
+});
+
 
   onValue(wRef, (snap) => {
     const data = snap.val();
@@ -141,15 +151,23 @@ const txWaiting = async (mutate: (arr: number[][]) => number[][]) => {
 
 const txCourt = async (courtIndex: number, mutate: (c: Court) => Court) => {
   await runTransaction(ref(rtdb, `courts/${courtIndex}`), (cur) => {
-    const base: Court = cur && typeof cur === "object"
-      ? {
-          id: cur.id ?? courtIndex + 1,
-          players: Array.isArray(cur.players) ? cur.players.filter(Boolean) : [],
-          startTime: typeof cur.startTime === "number" ? cur.startTime : null,
-          counted: !!cur.counted,
-          sessionId: typeof cur.sessionId === "number" ? cur.sessionId : null,
-        }
-      : { id: courtIndex + 1, players: [], startTime: null, counted: false, sessionId: null };
+    const base: Court =
+  cur && typeof cur === "object"
+    ? {
+        id: cur.id ?? courtIndex + 1,
+        players: Array.isArray(cur.players) ? cur.players.filter(Boolean) : [],
+        startTime: typeof cur.startTime === "number" ? cur.startTime : null,
+        sessionId: typeof cur.sessionId === "number" ? cur.sessionId : null,
+        countedSessionId:
+          typeof cur.countedSessionId === "number" ? cur.countedSessionId : null,
+      }
+    : {
+        id: courtIndex + 1,
+        players: [],
+        startTime: null,
+        sessionId: null,
+        countedSessionId: null,
+      };
 
     return mutate(base);
   });
@@ -252,9 +270,12 @@ txWaiting((arr) => arr.map((q) => q.filter((x) => x !== p.id)));
 safeCourts.forEach((court, idx) => {
   if (court.players.some((x) => x.id === p.id)) {
     txCourt(idx, (c) => ({
-      ...c,
-      players: c.players.filter((x) => x.id !== p.id),
-    }));
+  ...c,
+  players: c.players.filter((x) => x.id !== p.id),
+  // 혹시 게임 중이었다면 카운트 상태는 그대로 유지
+  sessionId: c.sessionId,
+  countedSessionId: c.countedSessionId,
+}));
   }
 });
 
@@ -330,64 +351,49 @@ setSelectedPlayers([]);
 
 
   /** 코트 배정 */
-  const assignToCourt = async (courtId: number, idx: number) => {
+const assignToCourt = async (courtId: number, idx: number) => {
   if (!isAdmin) return;
 
-  // 화면에 보이는 대기열이 4명인지 확인(UX용)
   const q = safeWaitingQueues[idx];
   if (q.length !== 4) return alert("4명일 때만 가능");
 
   const assigned = players.filter((p) => q.includes(p.id));
   const courtIndex = safeCourts.findIndex((c) => c.id === courtId);
   if (courtIndex === -1) return;
-
+ 
   const newSessionId = Date.now();
 
-  // ✅ 1) 코트 트랜잭션: 이미 누가 배정했으면 실패
-  let assignedOk = false;
+  let success = false;
   await runTransaction(ref(rtdb, `courts/${courtIndex}`), (cur) => {
-    const current: Court = cur && typeof cur === "object"
-      ? {
-          id: cur.id ?? courtIndex + 1,
-          players: Array.isArray(cur.players) ? cur.players.filter(Boolean) : [],
-          startTime: typeof cur.startTime === "number" ? cur.startTime : null,
-          counted: !!cur.counted,
-          sessionId: typeof cur.sessionId === "number" ? cur.sessionId : null,
-        }
-      : { id: courtIndex + 1, players: [], startTime: null, counted: false, sessionId: null };
+    // ✅ 이미 게임 중이면 절대 덮어쓰지 않음 (관리자 충돌 방지)
+    if (cur && Array.isArray(cur.players) && cur.players.length > 0) return cur;
 
-    // 이미 게임중이면 건드리지 않음 (관리자 2명 충돌 방지)
-    if (current.players.length > 0) return current;
-
-    assignedOk = true;
+    success = true;
     return {
-      ...current,
+      id: courtId,
       players: assigned,
       startTime: Date.now(),
-      counted: false,
       sessionId: newSessionId,
+      countedSessionId: null,
     };
   });
 
-  if (!assignedOk) {
+  if (!success) {
     alert("다른 관리자가 먼저 코트에 배정했어요. 화면을 확인해주세요.");
     return;
   }
 
-  // ✅ 2) 대기열 비우기 (DB 최신 상태 기준)
+  // ✅ 대기열 비우기 (최신 DB 기준)
   await txWaiting((arr) => {
-  const next = [...arr];
-
-  // ✅ 최신 DB 기준으로 idx 대기열을 다시 확인
-  const live = Array.isArray(next[idx]) ? next[idx] : [];
-  // 혹시 누가 먼저 바꿨으면 건드리지 않음
-  if (live.length !== 4) return arr;
-
-  next[idx] = [];
-  return next;
-});
-
+    const next = [...arr];
+    const live = Array.isArray(next[idx]) ? next[idx] : [];
+    if (live.length !== 4) return arr;
+    next[idx] = [];
+    return next;
+  });
 };
+
+
 
   /** 코트 비우기 */
   const clearCourt = async (courtId: number) => {
@@ -397,106 +403,95 @@ setSelectedPlayers([]);
   if (courtIndex === -1) return;
 
   await txCourt(courtIndex, (c) => ({
-    ...c,
-    players: [],
-    startTime: null,
-    counted: false,
-    sessionId: null,
-  }));
+  ...c,
+  players: [],
+  startTime: null,
+  sessionId: null,
+  countedSessionId: null,
+}));
+
 };
 
 
   /** 4분 카운트 */
-  useEffect(() => {
-    const FOUR = 4 * 60 * 1000;
+  /** 4분 카운트 (sessionId 기준, 1회만 처리 / 최신 코트 기준) */
+useEffect(() => {
+  const FOUR = 4 * 60 * 1000;
+let processing = false;
+  for (const court of safeCourts) {
+  const FOUR = 4 * 60 * 1000;
 
-    const toCount = safeCourts.filter(
-      (c) =>
-        c.startTime &&
-        !c.counted &&
-        currentTime - c.startTime >= FOUR &&
-        c.players.length > 0
-    );
+  if (!court.startTime || !court.sessionId) continue;
+  if (Date.now() - court.startTime < FOUR) continue;
+  if (court.countedSessionId === court.sessionId) continue;
+  if (!court.players || court.players.length === 0) continue;
 
-    if (toCount.length === 0) return;
+  const courtIndex = safeCourts.findIndex((c) => c.id === court.id);
+  if (courtIndex === -1) continue;
 
-    toCount.forEach(async (court) => {
-  const courtIndex = safeCourts.findIndex((x) => x.id === court.id);
-  if (courtIndex === -1) return;
-
-  // ✅ counted를 먼저 트랜잭션으로 잠금: 한 명만 성공
   let iAmFirst = false;
+  let latestPlayerIds: number[] = [];
+
   await runTransaction(ref(rtdb, `courts/${courtIndex}`), (cur) => {
     if (!cur) return cur;
 
-    const c: Court = {
-      id: cur.id ?? courtIndex + 1,
-      players: Array.isArray(cur.players) ? cur.players.filter(Boolean) : [],
-      startTime: typeof cur.startTime === "number" ? cur.startTime : null,
-      counted: !!cur.counted,
-      sessionId: typeof cur.sessionId === "number" ? cur.sessionId : null,
-    };
+    const curStartTime = typeof cur.startTime === "number" ? cur.startTime : null;
+    const curSessionId = typeof cur.sessionId === "number" ? cur.sessionId : null;
+    const curCountedSessionId =
+      typeof cur.countedSessionId === "number" ? cur.countedSessionId : null;
 
-    const FOUR = 4 * 60 * 1000;
+    const curPlayers = Array.isArray(cur.players) ? cur.players.filter(Boolean) : [];
+
     const ok =
-      c.startTime &&
-      !c.counted &&
-      Date.now() - c.startTime >= FOUR &&
-      c.players.length > 0;
+      curStartTime &&
+      curSessionId &&
+      Date.now() - curStartTime >= FOUR &&
+      curPlayers.length > 0 &&
+      curCountedSessionId !== curSessionId;
 
-    if (!ok) return c;
+    if (!ok) return cur;
 
     iAmFirst = true;
-    return { ...c, counted: true };
+    latestPlayerIds = curPlayers.map((p: any) => p.id);
+
+    return {
+      ...cur,
+      countedSessionId: curSessionId,
+    };
   });
 
-  if (!iAmFirst) return; // 다른 사람이 먼저 처리함
+  if (!iAmFirst || latestPlayerIds.length === 0) continue;
 
-  const ids = new Set<number>((court.players ?? []).map((p) => p.id));
+  const idSet = new Set(latestPlayerIds);
 
-  // ✅ playCount 증가도 트랜잭션으로
-  await txPlayers((arr) => {
-    const next = arr.map((p) =>
-      ids.has(p.id) ? { ...p, playCount: (p.playCount ?? 0) + 1 } : p
-    );
-
-    next.forEach((p) => {
-      if (ids.has(p.id) && p.playCount === 3) saveAttendanceOnce(p);
-    });
-
-    return next;
-  });
-});
-
-
-  }, [currentTime, safeCourts, players]);
-
-  // 3회 달성 시 하루 출석 저장 (중복 방지)
-async function saveAttendanceOnce(player: any) {
-
-  const today = new Date().toISOString().slice(0, 10); // YYYY-MM-DD
-  const month = today.slice(0, 7); // YYYY-MM
-
-  const ref = doc(
-    db,
-    "attendance",
-    month,
-    "days",
-    today,
-    "players",
-    player.name
+  await txPlayers((arr) =>
+    arr.map((p) =>
+      idSet.has(p.id) ? { ...p, playCount: (p.playCount ?? 0) + 1 } : p
+    )
   );
-
-  const snap = await getDoc(ref);
-  if (snap.exists()) return; // 이미 저장됨 → 중복 방지
-
-  await setDoc(ref, {
-    name: player.name,
-    grade: player.grade,
-    guest: player.guest,
-    date: today,
-  });
 }
+
+
+    if (!iAmFirst || latestPlayerIds.length === 0) {
+  processing = false;
+  return;
+}
+
+
+    // ✅ 2) 참여횟수 증가 (딱 1번만)
+    const idSet = new Set(latestPlayerIds);
+
+    await txPlayers((arr) => {
+      const next = arr.map((p) =>
+        idSet.has(p.id) ? { ...p, playCount: (p.playCount ?? 0) + 1 } : p
+      );
+      return next;
+    });
+    processing = false;
+  });
+}, [safeCourts]);
+
+
   /** 경과 시간 표시 */
   const elapsed = (startTime: number | null) => {
     if (!startTime) return "00:00";
@@ -528,16 +523,17 @@ async function saveAttendanceOnce(player: any) {
       setSelectedPlayers([]);
 
       await Promise.all(
-        [0, 1, 2].map((idx) =>
-          txCourt(idx, (c) => ({
-            ...c,
-            players: [],
-            startTime: null,
-            counted: false,
-            sessionId: null,
-          }))
-        )
-      );
+  [0, 1, 2].map((idx) =>
+    txCourt(idx, (c) => ({
+      ...c,
+      players: [],
+      startTime: null,
+      sessionId: null,
+      countedSessionId: null,
+    }))
+  )
+);
+
     }}
     className="bg-red-300 text-white px-4 py-2 rounded-xl flex items-center gap-2"
   >

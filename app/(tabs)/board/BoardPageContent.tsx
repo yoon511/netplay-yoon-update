@@ -757,7 +757,7 @@ const forceClearCourt = async (courtId: number) => {
   <div className="flex gap-2">
     <button
       onClick={() => endGameAndCount(court.id)}
-      className="flex-1 py-2 bg-emerald-200 text-emerald-900 rounded-xl font-bold hover:bg-emerald-300 transition"
+      className="flex-1 py-1.5 text-sm bg-emerald-200 text-emerald-900 rounded-lg font-semibold hover:bg-emerald-300 transition"
     >
       게임 종료
       <br />
@@ -766,12 +766,13 @@ const forceClearCourt = async (courtId: number) => {
 
     <button
       onClick={() => forceClearCourt(court.id)}
-      className="flex-1 py-2 bg-rose-200 text-rose-900 rounded-xl font-bold hover:bg-rose-300 transition"
+      className="flex-1 py-1.5 text-sm bg-rose-200 text-rose-900 rounded-lg font-semibold hover:bg-rose-300 transition"
     >
       코트 비우기
     </button>
   </div>
 )}
+
 
                 
               </div>

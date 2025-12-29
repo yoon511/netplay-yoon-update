@@ -766,7 +766,7 @@ const forceClearCourt = async (courtId: number) => {
     {/* 오른쪽: 게임 종료 */}
     <button
       onClick={() => endGameAndCount(court.id)}
-      className="flex-1 py-1.5 text-sm bg-lime-200 text-lime-900 rounded-lg font-semibold hover:bg-lime-300 transition"
+      className="flex-1 py-1.5 text-sm bg-lime-100 text-lime-900 rounded-lg font-semibold hover:bg-lime-200 transition"
     >
       게임 종료
       <br />

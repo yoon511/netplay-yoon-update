@@ -753,25 +753,27 @@ const forceClearCourt = async (courtId: number) => {
                     </div>
                   ))}
                 </div>
+{isAdmin && (
+  <div className="flex gap-2">
+    <button
+      onClick={() => endGameAndCount(court.id)}
+      className="flex-1 py-2 bg-emerald-200 text-emerald-900 rounded-xl font-bold hover:bg-emerald-300 transition"
+    >
+      게임 종료
+      <br />
+      (횟수 추가)
+    </button>
 
-                {isAdmin && (
-                  <div className="flex gap-2">
-  <button
-    onClick={() => endGameAndCount(court.id)}
-    className="flex-1 py-2 bg-green-500 text-white rounded-xl font-bold"
-  >
-    게임 종료 (횟수 추가)
-  </button>
+    <button
+      onClick={() => forceClearCourt(court.id)}
+      className="flex-1 py-2 bg-rose-200 text-rose-900 rounded-xl font-bold hover:bg-rose-300 transition"
+    >
+      코트 비우기
+    </button>
+  </div>
+)}
 
-  <button
-    onClick={() => forceClearCourt(court.id)}
-    className="flex-1 py-2 bg-red-400 text-white rounded-xl font-bold"
-  >
-    강제 코트 비우기
-  </button>
-</div>
-                  
-                )}
+                
               </div>
             )}
           </div>

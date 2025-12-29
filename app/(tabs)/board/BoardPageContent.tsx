@@ -758,7 +758,7 @@ const forceClearCourt = async (courtId: number) => {
     {/* 왼쪽: 코트 비우기 */}
     <button
       onClick={() => forceClearCourt(court.id)}
-      className="flex-1 py-1.5 text-sm bg-rose-200 text-rose-900 rounded-lg font-semibold hover:bg-rose-300 transition"
+      className="flex-1 py-1.5 text-sm bg-rose-100 text-rose-900 rounded-lg font-semibold hover:bg-rose-200 transition"
     >
       코트 비우기
     </button>
@@ -766,7 +766,7 @@ const forceClearCourt = async (courtId: number) => {
     {/* 오른쪽: 게임 종료 */}
     <button
       onClick={() => endGameAndCount(court.id)}
-      className="flex-1 py-1.5 text-sm bg-lime-100 text-lime-900 rounded-lg font-semibold hover:bg-lime-200 transition"
+      className="flex-1 py-1.5 text-sm bg-green-100 text-green-900 rounded-lg font-semibold hover:bg-green-200 transition"
     >
       게임 종료
       <br />

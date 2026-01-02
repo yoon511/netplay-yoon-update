@@ -58,19 +58,21 @@ export default function RankingPage() {
     }
   }
 
-  /** 🟨 공동 등수 계산 */
-  function getRank(index: number) {
-    if (index === 0) return 1;
+  /** 🟨 공동 등수 계산 (공동 1등 다음은 2등) */
+function getRank(index: number) {
+  const currCount = ranking[index].count;
 
-    const prev = ranking[index - 1];
-    const curr = ranking[index];
+  // 나보다 점수가 높은 "서로 다른 점수" 개수 세기
+  const higherCounts = new Set(
+    ranking
+      .slice(0, index)
+      .map((item) => item.count)
+      .filter((count) => count > currCount)
+  );
 
-    if (prev.count === curr.count) {
-      return getRank(index - 1);
-    }
+  return higherCounts.size + 1;
+}
 
-    return index + 1;
-  }
 
   /** 🏅 메달 표시 */
   const medal = (rank: number) => {

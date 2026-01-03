@@ -225,6 +225,7 @@ export default function VoteDetailPage() {
   /** 🔥 관리자 강제 삭제 */
    /** 🔥 관리자 강제 삭제 */
   async function adminForceRemove(
+  
     target: any,
     type: "participant" | "waitlist"
   ) {
@@ -263,6 +264,29 @@ export default function VoteDetailPage() {
       // (현재 UI엔 대기자 제거 버튼 없지만, 함수는 안전하게 맞춰둠)
       newW = newW.filter((w) => !matchesUser(w, name, ""));
     }
+/** 🔥 관리자: 참석자 게스트 토글 */
+async function toggleGuest(target: any) {
+  if (!isAdmin) return;
+
+  const ref = doc(db, "polls", pollId as string);
+
+  const newParticipants = participants.map((p) => {
+    // 문자열 → 게스트로
+    if (typeof p === "string" && p === target) {
+      return { name: p, guest: true };
+    }
+
+    // 객체 → 일반으로
+    if (typeof p === "object" && p.name === target.name) {
+      return p.guest ? p.name : p;
+    }
+
+    return p;
+  });
+
+  await updateDoc(ref, { participants: newParticipants });
+  loadPoll();
+}
 
     await updateDoc(ref, { participants: newP, waitlist: newW });
     await pushLog("admin_remove", name);
@@ -760,13 +784,23 @@ await addDoc(collection(db, "participationLogs"), {
                     </div>
 
                     {isAdmin && (
-                      <button
-                        onClick={() => adminForceRemove(n, "participant")}
-                        className="text-red-500 text-xs"
-                      >
-                        제거
-                      </button>
-                    )}
+  <div className="flex gap-2">
+    <button
+      onClick={() => adminForceRemove(n, "participant")}
+      className="text-red-500 text-xs"
+    >
+      제거
+    </button>
+
+    <button
+      onClick={() => toggleGuest(n)}
+      className="text-blue-500 text-xs"
+    >
+      {isGuest ? "게스트 해제" : "게스트로"}
+    </button>
+  </div>
+)}
+
                   </div>
                 );
               })}

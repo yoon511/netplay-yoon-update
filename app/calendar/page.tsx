@@ -14,8 +14,14 @@ function CalendarContent() {
     const router = useRouter();
   const params = useSearchParams();
       const [meetingDates, setMeetingDates] = useState<Set<string>>(new Set());
-        const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [dayMeetings, setDayMeetings] = useState<any[]>([]);
+      const [selectedDate, setSelectedDate] = useState<Date>(new Date());
+      const [dayMeetings, setDayMeetings] = useState<any[]>([]);
+      const [monthSummary, setMonthSummary] = useState({
+  meetings: 0,
+  totalAttendees: 0,
+  guestCount: 0,
+});
+
 
   useEffect(() => {
     async function loadMeetingDates() {
@@ -34,6 +40,11 @@ function CalendarContent() {
 
     loadMeetingDates();
   }, []);
+  useEffect(() => {
+  loadMonthSummary(selectedDate);
+}, []);
+
+
   function toDateKey(date: Date) {
     const y = date.getFullYear();
     const m = String(date.getMonth() + 1).padStart(2, "0");
@@ -54,6 +65,34 @@ function CalendarContent() {
 
     setDayMeetings(list);
   }
+  async function loadMonthSummary(date: Date) {
+  const y = date.getFullYear();
+  const m = String(date.getMonth() + 1).padStart(2, "0");
+
+  const snap = await getDocs(collection(db, "meetings"));
+
+  let meetings = 0;
+  let totalAttendees = 0;
+  let guestCount = 0;
+
+  snap.forEach((doc) => {
+    const data = doc.data();
+    if (!data.dateKey) return;
+
+    // 같은 달인지 확인 (yyyy-mm)
+    if (data.dateKey.startsWith(`${y}-${m}`)) {
+      meetings += 1;
+
+      (data.attendees || []).forEach((a: any) => {
+        totalAttendees += 1;
+        if (a.guest) guestCount += 1;
+      });
+    }
+  });
+
+  setMonthSummary({ meetings, totalAttendees, guestCount });
+}
+
 
   return (
     <main className="min-h-screen bg-[#F3FAF7] p-4">
@@ -84,6 +123,15 @@ function CalendarContent() {
 
 
         <div className="rounded-2xl border border-[#DFF2EA] bg-[#F6FBF9] p-4">
+         <div className="mb-4 text-sm font-semibold text-[#51736f] bg-[#ECF8F3] rounded-xl px-4 py-2">
+  📊 {selectedDate.getFullYear()}년 {selectedDate.getMonth() + 1}월 ·
+  모임 {monthSummary.meetings}회 ·
+  참석 {monthSummary.totalAttendees}명
+  {monthSummary.guestCount > 0 && (
+    <> (게스트 {monthSummary.guestCount}명)</>
+  )}
+</div>
+
          <Calendar
   locale="en-US"
   showNeighboringMonth={false}
@@ -92,6 +140,12 @@ function CalendarContent() {
     setSelectedDate(date);
     loadMeetingsByDate(date);
   }}
+  onActiveStartDateChange={({ activeStartDate }) => {
+  if (activeStartDate) {
+    loadMonthSummary(activeStartDate);
+  }
+}}
+
   formatDay={(locale, date) => date.getDate().toString()}
   formatMonthYear={(locale, date) =>
     `${date.getFullYear()}년 ${date.getMonth() + 1}월`
@@ -113,6 +167,8 @@ function CalendarContent() {
       </div>
     );
   }}
+
+
 />
 
 

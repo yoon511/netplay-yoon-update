@@ -273,18 +273,20 @@ export default function VoteDetailPage() {
   }
 
 /** 🔥 관리자: 참석자 게스트 토글 */
+/** 🔥 관리자: 참석자 게스트 토글 */
 async function toggleGuest(target: any) {
   if (!isAdmin) return;
 
   const ref = doc(db, "polls", pollId as string);
 
   const newParticipants = participants.map((p) => {
-    // 문자열 → 게스트로
+    // 문자열 (이름:pin or 이름) → 게스트 객체
     if (typeof p === "string" && p === target) {
-      return { name: p, guest: true };
+      const nameOnly = p.includes(":") ? p.split(":")[0] : p;
+      return { name: nameOnly, guest: true };
     }
 
-    // 객체 → 일반으로
+    // 객체 → 일반 참석자로 되돌리기
     if (typeof p === "object" && p.name === target.name) {
       return p.guest ? p.name : p;
     }
@@ -295,6 +297,7 @@ async function toggleGuest(target: any) {
   await updateDoc(ref, { participants: newParticipants });
   loadPoll();
 }
+
 
   /** 🔥 관리자 직접 인원 추가 (게스트 체크 가능) */
   async function adminAddPerson(

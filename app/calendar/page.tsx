@@ -151,15 +151,9 @@ const memberCount = Math.max(
     )}
   </div>
   <div
-  className="
-    text-sm
-    text-[#51736f]
-    font-medium
-    whitespace-nowrap
-    overflow-hidden
-    text-ellipsis
-  "
+  className="text-sm text-[#51736f] font-medium whitespace-nowrap overflow-hidden text-ellipsis"
 >
+
 회원 {memberCount}명
 {guestCount > 0 && <>, 게스트 {guestCount}명</>}
 과 함께했어요 🌱

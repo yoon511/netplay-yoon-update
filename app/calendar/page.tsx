@@ -16,6 +16,7 @@ function CalendarContent() {
       const [meetingDates, setMeetingDates] = useState<Set<string>>(new Set());
       const [selectedDate, setSelectedDate] = useState<Date>(new Date());
       const [dayMeetings, setDayMeetings] = useState<any[]>([]);
+      const [activeMonth, setActiveMonth] = useState<Date>(new Date());
       const [monthSummary, setMonthSummary] = useState({
   meetings: 0,
   totalAttendees: 0,
@@ -123,14 +124,21 @@ function CalendarContent() {
 
 
         <div className="rounded-2xl border border-[#DFF2EA] bg-[#F6FBF9] p-4">
-         <div className="mb-4 text-sm font-semibold text-[#51736f] bg-[#ECF8F3] rounded-xl px-4 py-2">
-  📊 {selectedDate.getFullYear()}년 {selectedDate.getMonth() + 1}월 ·
-  모임 {monthSummary.meetings}회 ·
-  참석 {monthSummary.totalAttendees}명
-  {monthSummary.guestCount > 0 && (
-    <> (게스트 {monthSummary.guestCount}명)</>
-  )}
+         <div className="mb-4 bg-[#ECF8F3] rounded-xl px-4 py-3 text-[#51736f]">
+  <div className="text-sm font-bold">
+    📊 {activeMonth.getFullYear()}년 {activeMonth.getMonth() + 1}월
+ 요약
+  </div>
+
+  <div className="mt-1 text-sm font-semibold">
+    모임 {monthSummary.meetings}회 ·
+    참석 {monthSummary.totalAttendees}명
+    {monthSummary.guestCount > 0 && (
+      <> (게스트 {monthSummary.guestCount}명)</>
+    )}
+  </div>
 </div>
+
 
          <Calendar
   locale="en-US"
@@ -140,11 +148,13 @@ function CalendarContent() {
     setSelectedDate(date);
     loadMeetingsByDate(date);
   }}
-  onActiveStartDateChange={({ activeStartDate }) => {
+ onActiveStartDateChange={({ activeStartDate }) => {
   if (activeStartDate) {
+    setActiveMonth(activeStartDate);
     loadMonthSummary(activeStartDate);
   }
 }}
+
 
   formatDay={(locale, date) => date.getDate().toString()}
   formatMonthYear={(locale, date) =>

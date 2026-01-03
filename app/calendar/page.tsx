@@ -44,26 +44,26 @@ async function deleteMeeting(meetingId: string) {
   // 🔄 화면 갱신
   loadMeetingsByDate(selectedDate);
   loadMonthSummary(activeMonth);
+  loadMeetingDates(); // ✅ 점 갱신
+
 }
 
+async function loadMeetingDates() {
+  const snap = await getDocs(collection(db, "meetings"));
 
-  useEffect(() => {
-    async function loadMeetingDates() {
-      const snap = await getDocs(collection(db, "meetings"));
+  const dates = new Set<string>();
+  snap.forEach((d) => {
+    const data = d.data();
+    if (data.dateKey) dates.add(data.dateKey);
+  });
 
-      const dates = new Set<string>();
-      snap.forEach((doc) => {
-        const data = doc.data();
-        if (data.dateKey) {
-          dates.add(data.dateKey);
-        }
-      });
+  setMeetingDates(dates);
+}
 
-      setMeetingDates(dates);
-    }
+ useEffect(() => {
+  loadMeetingDates();
+}, []);
 
-    loadMeetingDates();
-  }, []);
   useEffect(() => {
   loadMonthSummary(activeMonth);
 }, [activeMonth]);

@@ -267,6 +267,22 @@ function CalendarContent() {
   border-radius: 50%;
   background: #6fcf97;
 }
+  /* 상단 연/월 줄바꿈 방지 */
+.react-calendar__navigation__label {
+  white-space: nowrap;        /* 🔑 줄바꿈 금지 */
+  flex-grow: 0 !important;    /* 🔑 영역 과도 확장 방지 */
+}
+  .react-calendar__navigation {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.react-calendar__navigation button {
+  min-width: 44px;   /* ← 화살표 버튼 고정 */
+}
+
+
 
 
         `}</style>

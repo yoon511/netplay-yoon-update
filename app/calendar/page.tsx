@@ -230,12 +230,12 @@ function CalendarContent() {
             background: #3aae84 !important;
           }
            
-
-/* 일요일 */
-.react-calendar__month-view__days__day--weekend:first-child {
+/* 일요일만 빨간색 */
+.react-calendar__month-view__days__day--sunday {
   color: #e74c3c;
   font-weight: 900;
 }
+
 
 
 

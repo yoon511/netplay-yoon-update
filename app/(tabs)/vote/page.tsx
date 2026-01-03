@@ -7,6 +7,8 @@ import { collection, getDocs } from "firebase/firestore";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
+import { MapPinIcon } from "@heroicons/react/24/outline";
+
 
 type Poll = {
   id: string;
@@ -172,6 +174,33 @@ function VoteListContent() {
             })}
           </div>
         )}
+                <div className="mt-8">
+         
+           
+<Link
+  href={`/calendar?${userQuery}`}
+  className="
+    w-full mt-6
+    flex items-center justify-center gap-2
+    rounded-2xl
+    bg-[#E8F6F1]
+    py-4
+    text-lg font-semibold text-[#2F4F4F]
+    shadow-sm
+    hover:bg-[#DDF2EA]
+    transition
+  "
+>
+  <MapPinIcon className="w-6 h-6 text-[#3CB371]" />
+  지난 모임 기록 캘린더
+</Link>
+
+
+
+
+         
+        </div>
+
       </div>
     </main>
   );

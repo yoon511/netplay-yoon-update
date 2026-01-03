@@ -300,30 +300,77 @@ export default function VoteDetailPage() {
     await pushLog("admin_add", name);
     loadPoll();
   }
+  /** 🔥 투표 삭제 전 meetings 기록 저장 */
+  async function archivePollBeforeDelete() {
+    if (!poll) {
+      console.log("❌ poll 없음");
+      return;
+    }
+
+    console.log("🔥 archivePollBeforeDelete 실행", poll);
+
+    try {
+      const attendees = (poll.participants || []).map((p: any) => {
+        if (typeof p === "string") {
+          return {
+            name: p.includes(":") ? p.split(":")[0] : p,
+            guest: false,
+          };
+        }
+        return {
+          name: p.name,
+          guest: !!p.guest,
+        };
+      });
+
+      await addDoc(collection(db, "meetings"), {
+        dateKey: poll.date, // 🔑 달력 점 기준
+        date: poll.date,
+        time: poll.time,
+        location: poll.location,
+        fee: poll.fee,
+        pollId: pollId,
+        attendees,
+        createdAt: Timestamp.now(),
+      });
+
+      console.log("✅ meetings 저장 성공");
+    } catch (err) {
+      console.error("❌ meetings 저장 실패", err);
+      alert("meetings 저장 실패 (콘솔 확인)");
+    }
+  }
+
+ 
 
   /** 🔥 투표 삭제 */
   async function deletePoll() {
-    if (!isAdmin) return alert("관리자만 가능");
+    console.log("🔥 deletePoll 클릭됨");
+  if (!isAdmin) return alert("관리자만 가능");
 
-    const ok = confirm("이 투표를 완전히 삭제할까요?");
-    if (!ok) return;
+  const ok = confirm("이 투표를 완전히 삭제할까요?");
+  if (!ok) return;
 
-    await deleteDoc(doc(db, "polls", pollId as string));
+  // ✅ 1️⃣ 먼저 기록 저장
+  await archivePollBeforeDelete();
 
-    alert("삭제되었습니다.");
-    
-    // 쿼리 파라미터를 포함하여 투표 리스트로 이동
-    const userQuery = new URLSearchParams({
-      name: user.name,
-      pin: user.pin,
-      grade: user.grade,
-      gender: user.gender,
-      guest: String(user.guest),
-      admin: String(isAdmin),
-    }).toString();
-    
-    router.push(`/vote?${userQuery}`);
-  }
+  // ✅ 2️⃣ 그 다음 투표 삭제
+  await deleteDoc(doc(db, "polls", pollId as string));
+
+  alert("삭제되었습니다.");
+
+  const userQuery = new URLSearchParams({
+    name: user.name,
+    pin: user.pin,
+    grade: user.grade,
+    gender: user.gender,
+    guest: String(user.guest),
+    admin: String(isAdmin),
+  }).toString();
+
+  router.push(`/vote?${userQuery}`);
+}
+
 /** 🔥 정원 변경 시 참석/대기 자동 재정렬 */
 function rebalanceByCapacity(
   participants: any[],
@@ -478,6 +525,21 @@ await addDoc(collection(db, "participationLogs"), {
   return (
     <main className="p-4 pb-20 bg-[#FFF8F0] min-h-screen">
       <div className="max-w-xl mx-auto bg-white rounded-2xl shadow p-6">
+<Link
+  href={`/vote?${new URLSearchParams({
+    name: user.name,
+    pin: user.pin,
+    grade: user.grade,
+    gender: user.gender,
+    guest: String(user.guest),
+    admin: String(isAdmin),
+  }).toString()}`}
+  className="mb-4 inline-flex items-center gap-1
+             text-sm text-gray-600 hover:text-gray-900"
+>
+  ← 투표 목록으로
+</Link>
+
 
         <h1 className="text-3xl font-bold text-red-500 mb-4">
           Netplay 참석 투표 🗳️

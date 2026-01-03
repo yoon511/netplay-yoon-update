@@ -158,6 +158,11 @@ const memberCount = Math.max(
 과 함께했어요 🌱
 
 </div>
+{monthSummary.meetings === 0 && (
+  <div className="mt-2 text-sm text-[#9AAFA9]">
+    아직 이 달의 모임 기록이 없어요 🌱
+  </div>
+)}
 
 </div>
 

@@ -137,6 +137,21 @@ function CalendarContent() {
       <> (게스트 {monthSummary.guestCount}명)</>
     )}
   </div>
+  <div
+  className="
+    text-sm
+    text-[#51736f]
+    font-medium
+    whitespace-nowrap   /* 🔑 줄바꿈 방지 */
+    overflow-hidden
+    text-ellipsis
+  "
+>
+  회원 {memberCount}명
+  {guestCount > 0 && `, 게스트 ${guestCount}명`}
+  과 함께 했어요 🌱</span>
+</div>
+
 </div>
 
 

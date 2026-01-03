@@ -22,6 +22,13 @@ function CalendarContent() {
   totalAttendees: 0,
   guestCount: 0,
 });
+// 🔑 월 요약에서 파생되는 값들
+const memberCount = Math.max(
+  0,
+  monthSummary.totalAttendees - monthSummary.guestCount
+);
+
+const guestCount = monthSummary.guestCount;
 
 
   useEffect(() => {
@@ -42,8 +49,9 @@ function CalendarContent() {
     loadMeetingDates();
   }, []);
   useEffect(() => {
-  loadMonthSummary(selectedDate);
-}, []);
+  loadMonthSummary(activeMonth);
+}, [activeMonth]);
+
 
 
   function toDateKey(date: Date) {
@@ -149,7 +157,7 @@ function CalendarContent() {
 >
   회원 {memberCount}명
   {guestCount > 0 && `, 게스트 ${guestCount}명`}
-  과 함께 했어요 🌱</span>
+  과 함께 했어요 🌱
 </div>
 
 </div>

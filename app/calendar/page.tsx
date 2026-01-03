@@ -150,14 +150,15 @@ const guestCount = monthSummary.guestCount;
     text-sm
     text-[#51736f]
     font-medium
-    whitespace-nowrap   /* 🔑 줄바꿈 방지 */
+    whitespace-nowrap
     overflow-hidden
     text-ellipsis
   "
 >
+
   회원 {memberCount}명
   {guestCount > 0 && `, 게스트 ${guestCount}명`}
-  과 함께 했어요 🌱
+  과 함께했어요 🌱
 </div>
 
 </div>
@@ -174,7 +175,6 @@ const guestCount = monthSummary.guestCount;
  onActiveStartDateChange={({ activeStartDate }) => {
   if (activeStartDate) {
     setActiveMonth(activeStartDate);
-    loadMonthSummary(activeStartDate);
   }
 }}
 

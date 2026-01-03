@@ -11,9 +11,11 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/firebase";
+import { deleteDoc, doc } from "firebase/firestore";
 
 
 function CalendarContent() {
+    const isAdmin = params.get("admin") === "true";
     const router = useRouter();
   const params = useSearchParams();
       const [meetingDates, setMeetingDates] = useState<Set<string>>(new Set());
@@ -33,6 +35,16 @@ const memberCount = Math.max(
   (monthSummary.totalAttendees ?? 0) - guestCount
 );
 
+async function deleteMeeting(meetingId: string) {
+  const ok = confirm("이 모임 기록을 달력에서 삭제할까요?");
+  if (!ok) return;
+
+  await deleteDoc(doc(db, "meetings", meetingId));
+
+  // 🔄 화면 갱신
+  loadMeetingsByDate(selectedDate);
+  loadMonthSummary(activeMonth);
+}
 
 
   useEffect(() => {
@@ -72,7 +84,11 @@ const memberCount = Math.max(
     snap.forEach((doc) => {
       const data = doc.data();
       if (data.dateKey === key) {
-        list.push(data);
+        list.push({
+  id: doc.id,
+  ...data,   // ⭐ 중요
+});
+
       }
     });
 
@@ -240,6 +256,15 @@ const memberCount = Math.max(
     </div>
   ))}
 </div>
+{isAdmin && (
+  <button
+    onClick={() => deleteMeeting(m.id)}
+    className="mt-3 text-xs text-red-500 hover:text-red-700"
+  >
+    🗑 이 모임 기록 삭제
+  </button>
+)}
+
 
         </div>
       </div>

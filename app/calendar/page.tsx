@@ -5,12 +5,12 @@ import "react-calendar/dist/Calendar.css";
 import { useRouter, useSearchParams } from "next/navigation";
 
 
-import { useEffect, useMemo, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { collection, getDocs } from "firebase/firestore";
 import { db } from "@/firebase";
 
 
-export default function CalendarPage() {
+function CalendarContent() {
     const router = useRouter();
   const params = useSearchParams();
       const [meetingDates, setMeetingDates] = useState<Set<string>>(new Set());
@@ -274,5 +274,19 @@ export default function CalendarPage() {
         
       </div>
     </main>
+  );
+}
+
+export default function CalendarPage() {
+  return (
+    <Suspense
+      fallback={
+        <main className="min-h-screen bg-[#F3FAF7] p-4 flex items-center justify-center">
+          캘린더 불러오는 중…
+        </main>
+      }
+    >
+      <CalendarContent />
+    </Suspense>
   );
 }

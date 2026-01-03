@@ -1,5 +1,9 @@
 "use client";
 
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+
+
 import Calendar from "react-calendar";
 import "react-calendar/dist/Calendar.css";
 import { useRouter, useSearchParams } from "next/navigation";
@@ -23,12 +27,13 @@ function CalendarContent() {
   guestCount: 0,
 });
 // 🔑 월 요약에서 파생되는 값들
+const guestCount = monthSummary.guestCount ?? 0;
+
 const memberCount = Math.max(
   0,
-  monthSummary.totalAttendees - monthSummary.guestCount
+  (monthSummary.totalAttendees ?? 0) - guestCount
 );
 
-const guestCount = monthSummary.guestCount;
 
 
   useEffect(() => {

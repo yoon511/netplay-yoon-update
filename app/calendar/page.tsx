@@ -15,9 +15,9 @@ import { deleteDoc, doc } from "firebase/firestore";
 
 
 function CalendarContent() {
-    const isAdmin = params.get("admin") === "true";
     const router = useRouter();
   const params = useSearchParams();
+   const isAdmin = params.get("admin") === "true";
       const [meetingDates, setMeetingDates] = useState<Set<string>>(new Set());
       const [selectedDate, setSelectedDate] = useState<Date>(new Date());
       const [dayMeetings, setDayMeetings] = useState<any[]>([]);

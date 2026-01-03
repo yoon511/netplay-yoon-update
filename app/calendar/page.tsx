@@ -155,10 +155,10 @@ const guestCount = monthSummary.guestCount;
     text-ellipsis
   "
 >
+회원 {memberCount}명
+{guestCount > 0 && <>, 게스트 {guestCount}명</>}
+과 함께했어요 🌱
 
-  회원 {memberCount}명
-  {guestCount > 0 && `, 게스트 ${guestCount}명`}
-  과 함께했어요 🌱
 </div>
 
 </div>

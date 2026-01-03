@@ -265,6 +265,14 @@ export default function VoteDetailPage() {
       newW = newW.filter((w) => !matchesUser(w, name, ""));
     }
 /** 🔥 관리자: 참석자 게스트 토글 */
+
+
+    await updateDoc(ref, { participants: newP, waitlist: newW });
+    await pushLog("admin_remove", name);
+    loadPoll();
+  }
+
+/** 🔥 관리자: 참석자 게스트 토글 */
 async function toggleGuest(target: any) {
   if (!isAdmin) return;
 
@@ -287,12 +295,6 @@ async function toggleGuest(target: any) {
   await updateDoc(ref, { participants: newParticipants });
   loadPoll();
 }
-
-    await updateDoc(ref, { participants: newP, waitlist: newW });
-    await pushLog("admin_remove", name);
-    loadPoll();
-  }
-
 
   /** 🔥 관리자 직접 인원 추가 (게스트 체크 가능) */
   async function adminAddPerson(

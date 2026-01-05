@@ -3,7 +3,7 @@
 export const dynamic = "force-dynamic";
 
 import { db } from "@/firebase";
-import { addDoc, collection, getDocs } from "firebase/firestore";
+import { addDoc, collection, getDocs, deleteDoc, doc } from "firebase/firestore";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 
@@ -66,6 +66,22 @@ export default function CreatePollPage() {
     }
   }
 
+// 🔥 템플릿 삭제 함수
+async function deleteTemplate(templateId: string) {
+  const ok = confirm("이 템플릿을 삭제할까요?");
+  if (!ok) return;
+
+  try {
+    await deleteDoc(doc(db, "templates", templateId));
+    setTemplates((prev) => prev.filter((t) => t.id !== templateId));
+    alert("템플릿이 삭제되었습니다.");
+  } catch (error) {
+    console.error("템플릿 삭제 실패:", error);
+    alert("템플릿 삭제에 실패했습니다.");
+  }
+}
+
+
   // 🔥 새로운 투표 생성
   async function createPoll() {
     if (!form.date || !form.time || !form.location) {
@@ -118,24 +134,38 @@ export default function CreatePollPage() {
         {showTemplates && templates.length > 0 && (
           <div className="bg-gray-100 p-3 rounded-xl space-y-2 mb-4 border">
             {templates.map((t) => (
-              <button
-                key={t.id}
-                onClick={() => {
-                  setForm({
-                    title: t.title,
-                    date: t.date,
-                    time: t.time,
-                    location: t.location,
-                    fee: t.fee,
-                    capacity: t.capacity,
-                  });
-                  setShowTemplates(false);
-                }}
-                className="w-full bg-white p-2 border rounded text-left"
-              >
-                📌 {t.title}
-              </button>
-            ))}
+  <div
+    key={t.id}
+    className="flex items-center gap-2 bg-white p-2 border rounded"
+  >
+    {/* 템플릿 불러오기 버튼 */}
+    <button
+      onClick={() => {
+        setForm({
+          title: t.title,
+          date: t.date,
+          time: t.time,
+          location: t.location,
+          fee: t.fee,
+          capacity: t.capacity,
+        });
+        setShowTemplates(false);
+      }}
+      className="flex-1 text-left"
+    >
+      📌 {t.title}
+    </button>
+
+    {/* 🔥 삭제 버튼 */}
+    <button
+      onClick={() => deleteTemplate(t.id)}
+      className="text-sm text-red-500 font-bold px-2"
+    >
+      삭제
+    </button>
+  </div>
+))}
+
           </div>
         )}
 

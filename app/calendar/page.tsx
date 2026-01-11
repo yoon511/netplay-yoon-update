@@ -167,7 +167,7 @@ if (a.guest === true) {
 
        <h1 className="flex items-center gap-2 text-2xl font-extrabold text-[#2F4F4F] mb-6">
   <span className="text-3xl">
-  Netplay 모임 기록 </span>🧩
+  넷플레이 모임 기록 </span>🧩
 </h1>
 
 

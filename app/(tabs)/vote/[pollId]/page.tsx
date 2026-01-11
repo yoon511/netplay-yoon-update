@@ -1007,9 +1007,9 @@ await addDoc(collection(db, "participationLogs"), {
   <div className="mt-4 space-y-2 border-t pt-3">
     <button
       onClick={handleAddSelectedToGameBoard}
-      className="w-full py-2 bg-blue-400 hover:bg-blue-500 text-white rounded-xl "
+      className="w-full py-2 bg-blue-400 hover:bg-blue-500 text-white rounded-xl font-bold"
     >
-      🎮 선택한 인원 게임판에 추가
+      게임판에 추가
     </button>
 
     <div className="grid grid-cols-2 gap-2">
@@ -1018,7 +1018,7 @@ await addDoc(collection(db, "participationLogs"), {
          className="py-2 bg-yellow-100 hover:bg-yellow-200
              text-yellow-900 rounded-xl font-bold"
 >
-        ✔ 랭킹 반영
+    랭킹 반영    
       </button>
 
       <button
@@ -1026,7 +1026,7 @@ await addDoc(collection(db, "participationLogs"), {
         className=" bg-gray-50 hover:bg-gray-100
 text-gray-600 rounded-xl font-bold"
 >
-        ↩ 랭킹 반영 취소
+         랭킹 반영 취소
       </button>
     </div>
   </div>

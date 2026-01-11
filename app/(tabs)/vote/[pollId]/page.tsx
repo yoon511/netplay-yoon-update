@@ -1003,16 +1003,18 @@ await addDoc(collection(db, "participationLogs"), {
     <div className="grid grid-cols-2 gap-2">
       <button
         onClick={applyAttendance}
-        className="py-2 bg-green-300 hover:bg-green-400 rounded-xl font-bold"
-      >
+         className="py-2 bg-yellow-100 hover:bg-yellow-200
+             text-yellow-900 rounded-xl font-bold"
+>
         ✔ 랭킹 반영
       </button>
 
       <button
         onClick={cancelAttendance}
-        className="py-2 bg-red-300 hover:bg-red-400 rounded-xl font-bold"
-      >
-        ❌ 랭킹 반영 취소
+        className=" bg-gray-50 hover:bg-gray-100
+text-gray-600 rounded-xl font-bold"
+>
+        ↩ 랭킹 반영 취소
       </button>
     </div>
   </div>

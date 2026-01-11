@@ -229,6 +229,10 @@ return (
               waitlist.length > 0 &&
               participants.length < poll.capacity;
 
+            const isApprovalPending = 
+              waitlist.length > 0 && participants.length < poll.capacity;
+  
+
             const nextWaiterName =
               waitlist.length > 0
                 ? typeof waitlist[0] === "string"
@@ -303,11 +307,19 @@ return (
 
                   </div>
                 )}
+                {/* ✅ 일반 사용자 안내 문구 (관리자 승인 대기 중일 때) */}
+{!isAdmin && isApprovalPending && (
+  <div className="mt-3 p-3 bg-gray-100 border border-gray-300 rounded-xl text-sm text-gray-700">
+    ⏳ 운영진이 대기 1번 <b>{nextWaiterName}</b> 님의 참석 여부를 확인 중입니다.
+  </div>
+)}
+
               </div>
             );
           })}
         </div>
       )}
+
 
       <div className="mt-8">
         <Link

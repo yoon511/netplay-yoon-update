@@ -115,8 +115,22 @@ function getRank(index: number) {
   }
 
   return (
-    <main className="p-4 pb-20 bg-gradient-to-br from-[#FFF7D6] to-[#FFEFAA] min-h-screen">
-      <div className="max-w-2xl mx-auto bg-white rounded-2xl shadow p-6">
+  <main className="p-4 pb-20 bg-gradient-to-br from-[#FFF7D6] to-[#FFEFAA] min-h-screen">
+    <div className="max-w-2xl mx-auto">
+
+      {/* 🏆 노란 배경 위 헤더 */}
+      <div className="mb-4 px-2">
+        <h1 className="text-2xl font-bold text-yellow-700 mb-1 pl-3">
+             넷플레이 월간 참석 랭킹 🏆
+        </h1>
+        <p className="text-sm text-gray-800 opacity-80 pl-3">
+          운영진을 제외한 랭킹 1위에게는 소소한 혜택이 제공될 예정입니다 🙂
+        </p>
+      </div>
+
+      {/* ⬇️ 흰 카드 시작 */}
+      <div className="bg-white rounded-2xl shadow p-6">
+        
 
         {/* 🔥 달 이동 버튼 */}
         <div className="flex justify-between items-center mb-4">
@@ -168,7 +182,10 @@ function getRank(index: number) {
           })}
         </div>
 
-      </div>
+            </div> {/* 흰 카드 끝 */}
+            </div>   {/* max-w-2xl */}
     </main>
   );
 }
+
+

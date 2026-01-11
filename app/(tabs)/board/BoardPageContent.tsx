@@ -468,45 +468,60 @@ const forceClearCourt = async (courtId: number) => {
 
   /** UI */
   return (
-    <main className="p-4 pb-20 bg-gradient-to-br from-[#E9F4FF] to-[#D6E8FF] min-h-screen">
-      <div className="max-w-6xl mx-auto bg-white p-6 rounded-2xl shadow">
+  <main className="p-4 pb-20 bg-gradient-to-br from-[#F2F8FF] to-[#EAF4FF] min-h-screen">
+ {/* 🎮 게임판 헤더 (랭킹과 동일한 구조) */}
+  <div className="max-w-6xl mx-auto mb-4 px-2 pl-3 relative">
+    <h1 className="text-2xl font-bold text-blue-500 mb-1 pl-3">
+      넷플레이 게임판 🏸
+    </h1>
+    <p className="text-sm text-gray-700 opacity-80 pl-3">
+      오늘의 게임 진행 현황과 대기 순서를 확인할 수 있습니다
+    </p>
 
-        {/* 헤더 */}
-        <div className="flex justify-between items-center mb-6">
-          <div className="flex gap-2 items-center">
-            <Users className="w-8 h-8 text-[#7DB9FF]" />
-            <h1 className="text-2xl font-bold">넷플레이 게임판</h1>
-          </div>
+    {/* 🔴 초기화 버튼 (기존 빨강 유지) */}
+    {isAdmin && (
+      <button
+        onClick={async () => {
+          if (!confirm("전체 초기화?")) return;
 
-          {isAdmin && (
-  <button
-    onClick={async () => {
-      if (!confirm("전체 초기화?")) return;
+          await runTransaction(ref(rtdb, "players"), () => []);
+          await runTransaction(ref(rtdb, "waitingQueues"), () => []);
+          setSelectedPlayers([]);
 
-      await runTransaction(ref(rtdb, "players"), () => []);
-      await runTransaction(ref(rtdb, "waitingQueues"), () => []);
-      setSelectedPlayers([]);
+          await Promise.all(
+            [0, 1, 2].map((idx) =>
+              txCourt(idx, (c) => ({
+                ...c,
+                players: [],
+                startTime: null,
+                sessionId: null,
+                countedSessionId: null,
+              }))
+            )
+          );
+        }}
+        className="
+          absolute top-0 right-2
+          bg-red-400 hover:bg-red-500
+          text-white
+          px-4 py-2
+          rounded-xl
+          text-sm font-bold
+          flex items-center gap-2
+        "
+      >
+        <RotateCcw className="w-4 h-4" />
+        초기화
+      </button>
+    )}
+  </div>
 
-      await Promise.all(
-  [0, 1, 2].map((idx) =>
-    txCourt(idx, (c) => ({
-      ...c,
-      players: [],
-      startTime: null,
-      sessionId: null,
-      countedSessionId: null,
-    }))
-  )
-);
+    {/* ✅ 흰 카드 전체 */}
+    <div className="max-w-6xl mx-auto bg-white p-6 rounded-2xl shadow">
 
-    }}
-    className="bg-red-300 text-white px-4 py-2 rounded-xl flex items-center gap-2"
-  >
-    <RotateCcw className="w-4 h-4" /> 초기화
-  </button>
-)}
+      
 
-        </div>
+        
 
         {/* 참가하기 */}
         <button
@@ -782,6 +797,7 @@ const forceClearCourt = async (courtId: number) => {
           </div>
         ))}
       </div>
+      
 
       {/* 삭제 모달 */}
       {showDeleteModal && deleteTarget && (

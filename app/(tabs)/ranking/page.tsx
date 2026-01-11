@@ -84,11 +84,31 @@ function getRank(index: number) {
 
   /** 🟦 배경색 */
   const bgColor = (rank: number) => {
-    if (rank === 1) return "bg-yellow-200 border-yellow-400";
-    if (rank === 2) return "bg-gray-200 border-gray-400";
-    if (rank === 3) return "bg-orange-200 border-orange-400";
-    return "bg-gray-100 border-gray-300";
-  };
+  if (rank === 1)
+    return `
+      bg-yellow-100
+      border
+      border-yellow-300
+      shadow-md
+      shadow-yellow-200/70
+    `;
+
+
+ if (rank === 2)
+  return `
+    bg-[#EEF2F7]
+    border border-[#CBD5E1]
+    shadow-sm
+  `;
+if (rank === 3)
+  return `
+    bg-[#FFE8D6]
+    border border-[#F3B99B]
+  `;
+ return "bg-[#F7F8F4] border border-[#E2E6D8]";
+};
+
+
 
   /** 🔥 달 변경 함수 */
   function changeMonth(offset: number) {
@@ -124,7 +144,7 @@ function getRank(index: number) {
              넷플레이 월간 참석 랭킹 🏆
         </h1>
         <p className="text-sm text-gray-800 opacity-80 pl-3">
-          운영진을 제외한 랭킹 1위에게는 소소한 혜택이 제공될 예정입니다 🙂
+          랭킹 1위에게는 소소한 혜택이 제공될 예정입니다 🙂
         </p>
       </div>
 
@@ -171,7 +191,8 @@ function getRank(index: number) {
                 <div className="flex items-center gap-3 text-xl font-bold">
                   <span>{medal(rank)}</span>
                   <span>{rank}위</span>
-                  <span className="ml-3">{item.name}</span>
+                 <span className="ml-3">{item.name}</span>
+            
                 </div>
 
                 <div className="text-right text-lg font-semibold text-gray-700">

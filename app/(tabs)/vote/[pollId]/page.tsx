@@ -176,11 +176,21 @@ export default function VoteDetailPage() {
   guest: user.guest,
 };
 
-if (newP.length < poll!.capacity) {
+// 🔒 규칙:
+// 1️⃣ 대기자가 한 명이라도 있으면 → 무조건 대기로
+// 2️⃣ 대기자가 없고 + 정원 안 찼을 때만 참석 가능
+
+if (newW.length > 0) {
+  // 이미 대기자가 있음 → 새치기 방지
+  newW.push(person);
+} else if (newP.length < poll!.capacity) {
+  // 대기자 없고 자리 남아있음
   newP.push(person);
 } else {
+  // 자리 없으면 대기
   newW.push(person);
 }
+
 
 
     await updateDoc(ref, { participants: newP, waitlist: newW });

@@ -58,6 +58,7 @@ export default function VoteDetailPage() {
   });
 
   const [editMode, setEditMode] = useState(false);
+  const [showAdminAdd, setShowAdminAdd] = useState(false);
   const [editForm, setEditForm] = useState({
     date: "",
     time: "",
@@ -65,6 +66,7 @@ export default function VoteDetailPage() {
     fee: "",
     capacity: "",
   });
+  
 
   const [showCancelModal, setShowCancelModal] = useState(false);
 
@@ -825,78 +827,89 @@ await addDoc(collection(db, "participationLogs"), {
           </button>
         </div>
 
-        {/* 관리자 버튼 */}
-        {isAdmin && (
-          <>
-            <button
-              onClick={() => setEditMode(!editMode)}
-              className="w-full py-2 bg-yellow-200 hover:bg-yellow-300 rounded-xl font-bold mb-2"
-            >
-              {editMode ? "수정 종료" : "✏ 정보 수정"}
-            </button>
+       {/* 관리자 버튼 */}
+{isAdmin && (
+  <div className="grid grid-cols-3 gap-2 mb-4">
+    <button
+      onClick={() => setEditMode(!editMode)}
+      className="py-2 bg-yellow-200 hover:bg-yellow-300 rounded-xl font-bold"
+    >
+      ✏ 투표 수정
+    </button>
 
-            <button
-              onClick={deletePoll}
-              className="w-full py-2 bg-red-300 hover:bg-red-400 text-white rounded-xl font-bold"
-            >
-              ❌ 투표 삭제
-            </button>
+  
 
-            <Link href="/vote/new">
-              <button className="w-full py-2 bg-blue-300 hover:bg-blue-400 text-white rounded-xl font-bold mt-2">
-                ➕ 새 투표 만들기
-              </button>
-            </Link>
-          </>
-        )}
+    <button
+      onClick={deletePoll}
+      className="py-2 bg-red-300 hover:bg-red-400 text-white rounded-xl font-bold"
+    >
+      ❌ 투표 삭제
+    </button>
+   <button
+  onClick={() => setShowAdminAdd((v) => !v)}
+  className="w-full py-2 bg-blue-200 hover:bg-blue-300 rounded-xl font-bold"
+>
+  ➕ 인원 추가 {showAdminAdd ? "닫기" : ""}
+</button>
 
-        {/* 관리자 인원 추가 (게스트 체크 포함) */}
-        {isAdmin && (
-          <div className="p-3 bg-blue-50 rounded-xl mb-4">
-            <input
-  id="adminAddName"
-  placeholder="이름"
-  className="p-2 border rounded w-full mb-2"
-/>
 
-<select id="adminAddGender" className="p-2 border rounded w-full mb-2">
-  <option value="">성별 선택</option>
-  <option value="남">남</option>
-  <option value="여">여</option>
-</select>
+  </div>
+)}
 
-<select id="adminAddGrade" className="p-2 border rounded w-full mb-2">
-  <option value="">급수 선택</option>
-  <option value="A조">A조</option>
-  <option value="B조">B조</option>
-  <option value="C조">C조</option>
-  <option value="D조">D조</option>
-  <option value="E조">E조</option>
-</select>
+{isAdmin && showAdminAdd && (
+  <div className="p-4 bg-blue-50 rounded-xl mb-4 border space-y-2 text-sm">
+    <input
+      id="adminAddName"
+      placeholder="이름"
+      className="w-full p-2 border rounded"
+    />
 
-<label className="flex items-center gap-2 text-sm mb-3">
-  <input type="checkbox" id="adminAddGuest" />
-  게스트 여부
-</label>
+    <select id="adminAddGender" className="w-full p-2 border rounded">
+      <option value="">성별 선택</option>
+      <option value="남">남</option>
+      <option value="여">여</option>
+    </select>
 
-<div className="grid grid-cols-2 gap-2">
-  <button
-    onClick={() => adminAddPerson("participant")}
-    className="bg-green-300 hover:bg-green-400 text-white rounded p-2"
-  >
-    참석 + 추가
-  </button>
+    <select id="adminAddGrade" className="w-full p-2 border rounded">
+      <option value="">급수 선택</option>
+      <option value="A조">A조</option>
+      <option value="B조">B조</option>
+      <option value="C조">C조</option>
+      <option value="D조">D조</option>
+      <option value="E조">E조</option>
+    </select>
 
-  <button
-    onClick={() => adminAddPerson("waitlist")}
-    className="bg-yellow-300 hover:bg-yellow-400 text-white rounded p-2"
-  >
-    대기 + 추가
-  </button>
-</div>
+    <label className="flex items-center gap-2">
+      <input type="checkbox" id="adminAddGuest" />
+      게스트
+    </label>
 
-          </div>
-        )}
+    <div className="grid grid-cols-2 gap-2">
+      <button
+        onClick={() => adminAddPerson("participant")}
+        className="bg-green-300 hover:bg-green-400 rounded py-2 font-bold"
+      >
+        참석 추가
+      </button>
+
+      <button
+        onClick={() => adminAddPerson("waitlist")}
+        className="bg-yellow-300 hover:bg-yellow-400 rounded py-2 font-bold"
+      >
+        대기 추가
+      </button>
+    </div>
+
+    <button
+      onClick={() => setShowAdminAdd(false)}
+      className="w-full mt-2 text-xs text-gray-500"
+    >
+      닫기
+    </button>
+  </div>
+)}
+
+       
 
         {/* 참석자 목록 */}
         <div className="mb-3">
@@ -907,39 +920,28 @@ await addDoc(collection(db, "participationLogs"), {
             참석자 ({participants.length})
             <span>{expanded.attend ? "▲" : "▼"}</span>
           </button>
-          {isAdmin && expanded.attend && (
-  <button
-    onClick={handleAddSelectedToGameBoard}
-    className="w-full mt-2 py-2 bg-blue-400 hover:bg-blue-500 text-white rounded-xl font-bold"
-  >
-    🎮 선택한 인원 게임판에 추가
-  </button>
-)}
+          
 
           {expanded.attend && (
             <div className="bg-red-50 p-3 border rounded-b-xl">
-              {/* 전체 선택 / 해제 */}
-              {isAdmin && (
-                <div className="flex gap-2 mb-3">
-                  <button
-                    onClick={() =>
-                      document.querySelectorAll(".att-check").forEach((el: any) => (el.checked = true))
-                    }
-                    className="flex-1 bg-green-200 hover:bg-green-300 text-white py-2 rounded-xl"
-                  >
-                    ✔ 전체 선택
-                  </button>
+              {/* ✅ 전체 선택 체크박스 */}
+{isAdmin && (
+  <label className="flex items-center gap-2 text-sm font-bold mb-3 cursor-pointer">
+    <input
+      type="checkbox"
+      onChange={(e) => {
+        const checked = e.target.checked;
+        document
+          .querySelectorAll<HTMLInputElement>(".att-check")
+          .forEach((el) => {
+            el.checked = checked;
+          });
+      }}
+    />
+    전체
+  </label>
+)}
 
-                  <button
-                    onClick={() =>
-                      document.querySelectorAll(".att-check").forEach((el: any) => (el.checked = false))
-                    }
-                    className="flex-1 bg-gray-300 hover:bg-gray-400 text-white py-2 rounded-xl"
-                  >
-                    ❌ 전체 해제
-                  </button>
-                </div>
-              )}
 
               {participants.map((n, idx) => {
                 const name = typeof n === "string" 
@@ -988,28 +990,40 @@ await addDoc(collection(db, "participationLogs"), {
                   </div>
                 );
               })}
+{/* ✅ 참석자 명단 하단 관리자 액션 버튼 */}
+{isAdmin && (
+  <div className="mt-4 space-y-2 border-t pt-3">
+    <button
+      onClick={handleAddSelectedToGameBoard}
+      className="w-full py-2 bg-blue-400 hover:bg-blue-500 text-white rounded-xl font-bold"
+    >
+      🎮 선택한 인원 게임판에 추가
+    </button>
+
+    <div className="grid grid-cols-2 gap-2">
+      <button
+        onClick={applyAttendance}
+        className="py-2 bg-green-300 hover:bg-green-400 rounded-xl font-bold"
+      >
+        ✔ 랭킹 반영
+      </button>
+
+      <button
+        onClick={cancelAttendance}
+        className="py-2 bg-red-300 hover:bg-red-400 rounded-xl font-bold"
+      >
+        ❌ 랭킹 반영 취소
+      </button>
+    </div>
+  </div>
+)}
+
+
             </div>
           )}
         </div>
 
-        {/* 랭킹 반영 / 취소 버튼 */}
-        {isAdmin && (
-          <div className="grid grid-cols-2 gap-3">
-            <button
-              onClick={applyAttendance}
-              className={pastelButton("bg-green-300 hover:bg-green-400")}
-            >
-              ✔ 랭킹 반영
-            </button>
-
-            <button
-              onClick={cancelAttendance}
-              className={pastelButton("bg-red-300 hover:bg-red-400")}
-            >
-              ❌ 랭킹 반영 취소
-            </button>
-          </div>
-        )}
+        
 
 
 
@@ -1034,16 +1048,26 @@ await addDoc(collection(db, "participationLogs"), {
 
                 return (
                   <div
-                    key={safeKey(n, idx)}
-                    className="flex justify-between border-b py-1 text-sm"
-                  >
-                    <div>
-                      대기 {idx + 1}. {name}{" "}
-                      {isGuest && (
-                        <span className="text-xs text-red-400">(게스트)</span>
-                      )}
-                    </div>
-                  </div>
+  key={safeKey(n, idx)}
+  className="flex justify-between items-center border-b py-1 text-sm"
+>
+  <div>
+    대기 {idx + 1}. {name}
+    {isGuest && (
+      <span className="text-xs text-red-400 ml-1">(게스트)</span>
+    )}
+  </div>
+
+  {isAdmin && (
+    <button
+      onClick={() => adminForceRemove(n, "waitlist")}
+      className="text-xs text-red-500 hover:text-red-700"
+    >
+      제거
+    </button>
+  )}
+</div>
+
                 );
               })}
             </div>

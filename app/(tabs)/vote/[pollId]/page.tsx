@@ -834,7 +834,7 @@ await addDoc(collection(db, "participationLogs"), {
       onClick={() => setEditMode(!editMode)}
       className="py-2 bg-yellow-200 hover:bg-yellow-300 rounded-xl font-bold"
     >
-      ✏ 투표 수정
+      투표 수정
     </button>
 
   
@@ -843,13 +843,13 @@ await addDoc(collection(db, "participationLogs"), {
       onClick={deletePoll}
       className="py-2 bg-red-300 hover:bg-red-400 text-white rounded-xl font-bold"
     >
-      ❌ 투표 삭제
+      투표 삭제
     </button>
    <button
   onClick={() => setShowAdminAdd((v) => !v)}
   className="w-full py-2 bg-blue-200 hover:bg-blue-300 rounded-xl font-bold"
 >
-  ➕ 인원 추가 {showAdminAdd ? "닫기" : ""}
+  참석자 추가 {showAdminAdd ? "닫기" : ""}
 </button>
 
 
@@ -1007,7 +1007,7 @@ await addDoc(collection(db, "participationLogs"), {
   <div className="mt-4 space-y-2 border-t pt-3">
     <button
       onClick={handleAddSelectedToGameBoard}
-      className="w-full py-2 bg-blue-400 hover:bg-blue-500 text-white rounded-xl font-bold"
+      className="w-full py-2 bg-blue-400 hover:bg-blue-500 text-white rounded-xl "
     >
       🎮 선택한 인원 게임판에 추가
     </button>

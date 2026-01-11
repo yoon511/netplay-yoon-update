@@ -105,7 +105,25 @@ if (rank === 3)
     bg-[#FFE8D6]
     border border-[#F3B99B]
   `;
- return "bg-[#F7F8F4] border border-[#E2E6D8]";
+ 
+   if (rank === 4)
+    return `
+      bg-[#F7F8F4]
+      border border-[#E2E6D8]
+    `;
+
+  // ➖ 5위 (4위보다 아주 살짝 연함)
+  if (rank === 5)
+    return `
+      bg-[#FAFBF8]
+      border border-[#E6EBDF]
+    `;
+
+  // ➖➖ 6위 이상 (거의 같은데 더 연함)
+  return `
+    bg-[#FDFEFC]
+    border border-[#EBEFE5]
+  `;
 };
 
 

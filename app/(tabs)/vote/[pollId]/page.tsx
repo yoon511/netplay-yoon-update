@@ -970,22 +970,34 @@ await addDoc(collection(db, "participationLogs"), {
                     </div>
 
                     {isAdmin && (
-  <div className="flex gap-2">
+  <div className="flex gap-2 pr-6">
     <button
       onClick={() => adminForceRemove(n, "participant")}
-      className="text-red-500 text-xs"
+      className="
+        w-12
+        text-xs
+        text-red-500
+        hover:text-red-700
+      "
     >
-      제거
+       삭제
     </button>
 
     <button
       onClick={() => toggleGuest(n)}
-      className="text-blue-500 text-xs"
+      className="
+        w-12
+        text-xs
+        text-blue-500
+        hover:text-blue-700
+        whitespace-nowrap
+      "
     >
-      {isGuest ? "게스트 해제" : "게스트로"}
+      {isGuest ? "게스트 해제" : "게스트로 전환"}
     </button>
   </div>
 )}
+
 
                   </div>
                 );

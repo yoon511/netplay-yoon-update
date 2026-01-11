@@ -17,7 +17,12 @@ import {
   Timestamp,
   updateDoc,
   where,
+  setDoc,
 } from "firebase/firestore";
+
+import { runTransaction, ref } from "firebase/database";
+import { rtdb } from "@/firebase";
+
 
 import ModalConfirm from "../components/ModalConfirm";
 
@@ -163,22 +168,153 @@ export default function VoteDetailPage() {
     let newP = [...participants];
     let newW = [...waitlist];
 
-    if (newP.length < poll!.capacity) {
-      newP.push(userIdentifier);
-    } else {
-      newW.push(userIdentifier);
-    }
+   const person = {
+  name: user.name,
+  pin: user.pin,      // 🔐 PIN 유지 (중요)
+  grade: user.grade,
+  gender: user.gender,
+  guest: user.guest,
+};
+
+if (newP.length < poll!.capacity) {
+  newP.push(person);
+} else {
+  newW.push(person);
+}
+
 
     await updateDoc(ref, { participants: newP, waitlist: newW });
+    // ✅ 사람 정보 DB에 저장 (최초 1회)
+await setDoc(
+  doc(db, "playersInfo", `${user.name}:${user.pin}`),
+  {
+    name: user.name,
+    grade: user.grade,
+    gender: user.gender,
+    guest: user.guest,
+    updatedAt: Timestamp.now(),
+  },
+  { merge: true }
+);
+
     await pushLog("join", user.name);
     loadPoll();
   }
+
+   /** 🎮 투표 → 게임판 참가 (관리자용) */
+async function addToGameBoardFromVote(person: {
+  name: string;
+  grade: string;
+  gender: string;
+  guest: boolean;
+  pin?: string;
+}) {
+  if (!isAdmin) {
+    alert("관리자만 가능합니다.");
+    return;
+  }
+
+  const newPlayer = {
+    id: Date.now(),
+    name: person.name,
+    grade: person.grade,
+    gender: person.gender,
+    guest: person.guest,
+    pin: person.pin ?? "",
+    playCount: 0,
+  };
+
+  await runTransaction(ref(rtdb, "players"), (cur) => {
+    const arr = Array.isArray(cur) ? cur.filter(Boolean) : [];
+
+    // ✅ 이미 있으면 추가 안 함
+    const exists = arr.some(
+      (p: any) => p.name === newPlayer.name && p.pin === newPlayer.pin
+    );
+    if (exists) return arr;
+
+    return [...arr, newPlayer];
+  });
+
+  alert(`🎮 ${person.name} 님이 게임판에 추가되었습니다.`);
+}
+ /** 🎮 체크된 참석자들 → 게임판 일괄 추가 */
+async function handleAddSelectedToGameBoard() {
+  if (!isAdmin) {
+    alert("관리자만 가능합니다.");
+    return;
+  }
+ 
+
+  const checkedBoxes = document.querySelectorAll(
+    ".att-check:checked"
+  ) as NodeListOf<HTMLInputElement>;
+
+  if (checkedBoxes.length === 0) {
+    alert("선택된 인원이 없습니다.");
+    return;
+  }
+
+  for (const box of Array.from(checkedBoxes)) {
+    const name = box.dataset.name;
+    if (!name) continue;
+
+    // 참석자 객체 찾기
+    const participant = participants.find(
+  (p) => typeof p === "object" && p.name === name
+);
+
+// ❌ 문자열 참가자는 스킵
+if (!participant) {
+  alert(`${name} 은(는) 정보가 없어 게임판에 추가할 수 없습니다.\n관리자 추가를 사용하세요.`);
+  continue;
+}
+
+await addToGameBoardFromVote({
+  name: participant.name,
+  grade: participant.grade,
+  gender: participant.gender,
+  guest: participant.guest,
+});
+
+
+
+
+
+  }
+
+  alert("🎮 선택된 인원이 모두 게임판에 추가되었습니다.");
+}
 
   /** 🔥 취소 모달 열기 */
   function openCancelModal() {
     if (!user.name) return alert("로그인 오류");
     setShowCancelModal(true);
   }
+
+  /** 🔥 관리자 승인: 대기 1번을 참석으로 올리기 */
+async function promoteWaiterByAdmin() {
+  if (!poll) return;
+  if (waitlist.length === 0) return;
+
+  const ref = doc(db, "polls", pollId as string);
+
+  const next = waitlist[0];
+
+  const newParticipants = [...participants, next];
+  const newWaitlist = waitlist.slice(1);
+
+  await updateDoc(ref, {
+    participants: newParticipants,
+    waitlist: newWaitlist,
+  });
+
+  const name =
+    typeof next === "string" ? next.split(":")[0] : next.name;
+
+  await pushLog("promote", name);
+  loadPoll();
+}
 
   /** 🔥 취소 처리 */
   async function handleCancel() {
@@ -201,13 +337,7 @@ export default function VoteDetailPage() {
       const pIndex = newP.findIndex((p) => matchesUser(p, user.name, user.pin));
       if (pIndex !== -1) {
         newP = newP.filter((_, idx) => idx !== pIndex);
-        if (newW.length > 0) {
-          const next = newW[0];
-          newW = newW.slice(1);
-          newP.push(next);
-          const nextName = typeof next === "string" ? next.split(":")[0] : next.name;
-          await pushLog("promote", nextName);
-        }
+       
       }
     }
     if (inW) {
@@ -219,60 +349,63 @@ export default function VoteDetailPage() {
 
     await updateDoc(ref, { participants: newP, waitlist: newW });
     await pushLog("cancel", user.name);
+    // 🔔 취소 후: 대기자가 있고 + 관리자인 경우 승인 팝업
+if (isAdmin && newW.length > 0) {
+  const nextName =
+    typeof newW[0] === "string"
+      ? newW[0].split(":")[0]
+      : newW[0].name;
+
+  const ok = confirm(
+    `대기 1번 "${nextName}" 님을 참석 명단으로 올릴까요?`
+  );
+
+  if (ok) {
+    await promoteWaiterByAdmin();
+  }
+}
+
     loadPoll();
   }
 
-  /** 🔥 관리자 강제 삭제 */
-   /** 🔥 관리자 강제 삭제 */
-  async function adminForceRemove(
-  
-    target: any,
-    type: "participant" | "waitlist"
-  ) {
-    if (!isAdmin) return alert("관리자만 가능");
+ /** 🔥 관리자 강제 삭제 (❌ 자동 승격 없음) */
+async function adminForceRemove(
+  target: any,
+  type: "participant" | "waitlist"
+) {
+  if (!isAdmin) return alert("관리자만 가능");
 
-    const name =
-      typeof target === "string"
-        ? target.includes(":")
-          ? target.split(":")[0]
-          : target
-        : target.name;
+  const name =
+    typeof target === "string"
+      ? target.includes(":")
+        ? target.split(":")[0]
+        : target
+      : target.name;
 
-    const ok = confirm(`"${name}" 님을 삭제할까요?`);
-    if (!ok) return;
+  const ok = confirm(`"${name}" 님을 삭제할까요?`);
+  if (!ok) return;
 
-    const ref = doc(db, "polls", pollId as string);
+  const ref = doc(db, "polls", pollId as string);
 
-    let newP = [...participants];
-    let newW = [...waitlist];
+  let newP = [...participants];
+  let newW = [...waitlist];
 
-    if (type === "participant") {
-      // ✅ 문자열/이름:pin/객체 전부 대응해서 실제로 삭제
-      newP = newP.filter((p) => !matchesUser(p, name, ""));
-
-      if (newW.length > 0) {
-        const next = newW[0];
-        newW = newW.slice(1);
-        newP.push(next);
-
-        const nextName =
-          typeof next === "string" ? next.split(":")[0] : next.name;
-
-        await pushLog("promote", nextName);
-      }
-    } else {
-      // (현재 UI엔 대기자 제거 버튼 없지만, 함수는 안전하게 맞춰둠)
-      newW = newW.filter((w) => !matchesUser(w, name, ""));
-    }
-/** 🔥 관리자: 참석자 게스트 토글 */
-
-
-    await updateDoc(ref, { participants: newP, waitlist: newW });
-    await pushLog("admin_remove", name);
-    loadPoll();
+  if (type === "participant") {
+    newP = newP.filter((p) => !matchesUser(p, name, ""));
+  } else {
+    newW = newW.filter((w) => !matchesUser(w, name, ""));
   }
 
-/** 🔥 관리자: 참석자 게스트 토글 */
+  await updateDoc(ref, {
+    participants: newP,
+    waitlist: newW,
+  });
+
+  await pushLog("admin_remove", name);
+  loadPoll();
+}
+
+
 /** 🔥 관리자: 참석자 게스트 토글 */
 async function toggleGuest(target: any) {
   if (!isAdmin) return;
@@ -301,34 +434,53 @@ async function toggleGuest(target: any) {
 
   /** 🔥 관리자 직접 인원 추가 (게스트 체크 가능) */
   async function adminAddPerson(
-    name: string,
-    to: "participant" | "waitlist",
-    guest: boolean
-  ) {
-    if (!isAdmin) return alert("관리자만 가능");
-    if (!name) return alert("이름을 입력하세요.");
+  to: "participant" | "waitlist"
+) {
+  if (!isAdmin) return alert("관리자만 가능");
 
-    const ref = doc(db, "polls", pollId as string);
+  const name = (document.getElementById("adminAddName") as HTMLInputElement).value.trim();
+  const gender = (document.getElementById("adminAddGender") as HTMLSelectElement).value;
+  const grade = (document.getElementById("adminAddGrade") as HTMLSelectElement).value;
+  const guest = (document.getElementById("adminAddGuest") as HTMLInputElement).checked;
 
-    let newP = [...participants];
-    let newW = [...waitlist];
-
-    if (newP.includes(name) || newW.includes(name))
-      return alert("이미 포함된 이름입니다.");
-
-    const person = guest ? { name, guest: true } : name;
-
-    if (to === "participant") {
-      if (newP.length >= poll!.capacity) return alert("정원이 가득 찼습니다.");
-      newP.push(person);
-    } else {
-      newW.push(person);
-    }
-
-    await updateDoc(ref, { participants: newP, waitlist: newW });
-    await pushLog("admin_add", name);
-    loadPoll();
+  if (!name || !gender || !grade) {
+    return alert("이름, 성별, 급수를 모두 입력하세요.");
   }
+
+  const ref = doc(db, "polls", pollId as string);
+
+  const person = {
+    name,
+    gender,
+    grade,
+    guest,
+  };
+
+  let newP = [...participants];
+  let newW = [...waitlist];
+
+  if (
+    newP.some((p) => typeof p === "object" && p.name === name) ||
+    newW.some((w) => typeof w === "object" && w.name === name)
+  ) {
+    return alert("이미 포함된 사람입니다.");
+  }
+
+  if (to === "participant") {
+    if (newP.length >= poll!.capacity) {
+      newW.push(person);
+    } else {
+      newP.push(person);
+    }
+  } else {
+    newW.push(person);
+  }
+
+  await updateDoc(ref, { participants: newP, waitlist: newW });
+  await pushLog("admin_add", name);
+  loadPoll();
+}
+
   /** 🔥 투표 삭제 전 meetings 기록 저장 */
   async function archivePollBeforeDelete() {
     if (!poll) {
@@ -692,39 +844,47 @@ await addDoc(collection(db, "participationLogs"), {
         {isAdmin && (
           <div className="p-3 bg-blue-50 rounded-xl mb-4">
             <input
-              id="adminAdd"
-              placeholder="추가할 이름"
-              className="p-2 border rounded w-full mb-2"
-            />
+  id="adminAddName"
+  placeholder="이름"
+  className="p-2 border rounded w-full mb-2"
+/>
 
-            <label className="flex items-center gap-2 text-sm mb-3">
-              <input type="checkbox" id="adminAddGuest" />
-              게스트 여부
-            </label>
+<select id="adminAddGender" className="p-2 border rounded w-full mb-2">
+  <option value="">성별 선택</option>
+  <option value="남">남</option>
+  <option value="여">여</option>
+</select>
 
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                onClick={() => {
-                  const name = (document.getElementById("adminAdd") as HTMLInputElement).value;
-                  const guest = (document.getElementById("adminAddGuest") as HTMLInputElement).checked;
-                  adminAddPerson(name, "participant", guest);
-                }}
-                className="bg-green-300 hover:bg-green-400 text-white rounded p-2"
-              >
-                참석 + 추가
-              </button>
+<select id="adminAddGrade" className="p-2 border rounded w-full mb-2">
+  <option value="">급수 선택</option>
+  <option value="A조">A조</option>
+  <option value="B조">B조</option>
+  <option value="C조">C조</option>
+  <option value="D조">D조</option>
+  <option value="E조">E조</option>
+</select>
 
-              <button
-                onClick={() => {
-                  const name = (document.getElementById("adminAdd") as HTMLInputElement).value;
-                  const guest = (document.getElementById("adminAddGuest") as HTMLInputElement).checked;
-                  adminAddPerson(name, "waitlist", guest);
-                }}
-                className="bg-yellow-300 hover:bg-yellow-400 text-white rounded p-2"
-              >
-                대기 + 추가
-              </button>
-            </div>
+<label className="flex items-center gap-2 text-sm mb-3">
+  <input type="checkbox" id="adminAddGuest" />
+  게스트 여부
+</label>
+
+<div className="grid grid-cols-2 gap-2">
+  <button
+    onClick={() => adminAddPerson("participant")}
+    className="bg-green-300 hover:bg-green-400 text-white rounded p-2"
+  >
+    참석 + 추가
+  </button>
+
+  <button
+    onClick={() => adminAddPerson("waitlist")}
+    className="bg-yellow-300 hover:bg-yellow-400 text-white rounded p-2"
+  >
+    대기 + 추가
+  </button>
+</div>
+
           </div>
         )}
 
@@ -737,6 +897,14 @@ await addDoc(collection(db, "participationLogs"), {
             참석자 ({participants.length})
             <span>{expanded.attend ? "▲" : "▼"}</span>
           </button>
+          {isAdmin && expanded.attend && (
+  <button
+    onClick={handleAddSelectedToGameBoard}
+    className="w-full mt-2 py-2 bg-blue-400 hover:bg-blue-500 text-white rounded-xl font-bold"
+  >
+    🎮 선택한 인원 게임판에 추가
+  </button>
+)}
 
           {expanded.attend && (
             <div className="bg-red-50 p-3 border rounded-b-xl">
@@ -786,6 +954,7 @@ await addDoc(collection(db, "participationLogs"), {
                       {isGuest && (
                         <span className="text-xs text-red-400">(게스트)</span>
                       )}
+                    
                     </div>
 
                     {isAdmin && (
@@ -831,6 +1000,9 @@ await addDoc(collection(db, "participationLogs"), {
             </button>
           </div>
         )}
+
+
+
 
         {/* 대기자 */}
         <div className="mb-3 mt-4">

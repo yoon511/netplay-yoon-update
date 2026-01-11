@@ -25,15 +25,15 @@ function CalendarContent() {
       const [monthSummary, setMonthSummary] = useState({
   meetings: 0,
   totalAttendees: 0,
+  totalGuestAttendances: 0,
+  memberCount: 0,   // ✅ 추가
   guestCount: 0,
 });
+
 // 🔑 월 요약에서 파생되는 값들
+const memberCount = monthSummary.memberCount ?? 0;
 const guestCount = monthSummary.guestCount ?? 0;
 
-const memberCount = Math.max(
-  0,
-  (monthSummary.totalAttendees ?? 0) - guestCount
-);
 
 async function deleteMeeting(meetingId: string) {
   const ok = confirm("이 모임 기록을 달력에서 삭제할까요?");
@@ -102,7 +102,12 @@ async function loadMeetingDates() {
 
   let meetings = 0;
   let totalAttendees = 0;
-  let guestCount = 0;
+  let totalGuestAttendances = 0;
+
+// 🔑 중복 제거용 주머니
+const memberSet = new Set<string>();
+const guestSet = new Set<string>();
+
 
   snap.forEach((doc) => {
     const data = doc.data();
@@ -113,13 +118,28 @@ async function loadMeetingDates() {
       meetings += 1;
 
       (data.attendees || []).forEach((a: any) => {
-        totalAttendees += 1;
-        if (a.guest) guestCount += 1;
-      });
+  totalAttendees += 1; // ✅ 참석은 그대로 누적
+if (a.guest === true) {
+  totalGuestAttendances += 1;
+  guestSet.add(a.name);        // 게스트는 guest === true 만
+} else {
+  memberSet.add(a.name);       // 나머지는 전부 회원
+}
+
+ 
+});
+
     }
   });
 
-  setMonthSummary({ meetings, totalAttendees, guestCount });
+  setMonthSummary({
+  meetings,
+  totalAttendees,
+  totalGuestAttendances,
+  guestCount: guestSet.size,        // 중복 제거된 게스트 수
+  memberCount: memberSet.size,      // 중복 제거된 회원 수
+});
+
 }
 
 
@@ -162,7 +182,7 @@ async function loadMeetingDates() {
     모임 {monthSummary.meetings}회 ·
     참석 {monthSummary.totalAttendees}명
     {monthSummary.guestCount > 0 && (
-      <> (게스트 {monthSummary.guestCount}명)</>
+      <> (게스트 {monthSummary.totalGuestAttendances}명)</>
     )}
   </div>
   <div
